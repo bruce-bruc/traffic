@@ -1,0 +1,163 @@
+# ─────────────────────────────────────────────
+#  사당·남태령 퇴근길 모니터 설정
+#  인증키를 비워두면 '데모 모드'로 돌아갑니다 (가짜 속도로 전체 흐름만 확인).
+# ─────────────────────────────────────────────
+
+api_keys:
+  seoul_topis: ""      # 서울 열린데이터광장 (data.seoul.go.kr) 인증키
+  its_national: ""     # ITS 국가교통정보센터 (openapi.its.go.kr) 인증키
+  gyeonggi_gits: ""    # 경기도 교통정보센터 (gits.gg.go.kr) 인증키
+  kma_weather: ""      # 기상청 단기예보 (data.go.kr) 인증키 — 예측 날씨 보정용
+
+# 알림 (둘 중 하나만 채워도 됨. 둘 다 비우면 콘솔 출력만)
+notify:
+  telegram_bot_token: ""
+  telegram_chat_id: ""
+  push_time: "16:45"   # 매일 이 시각에 요약 푸시 (HH:MM, Asia/Seoul)
+
+# 폰에서 보기: 생성된 dashboard.html 을 FTP 로 자동 업로드 (카페24 등). 비우면 업로드 안 함.
+upload:
+  ftp_host: ""         # 예: antamine.com 또는 카페24 FTP 주소
+  ftp_user: ""
+  ftp_pass: ""
+  remote_dir: "/www/traffic"   # 서버 안 올릴 폴더 (없으면 자동 생성)
+  remote_name: "index.html"
+  public_url: "https://antamine.com/traffic/"   # 폰에서 열 주소 (참고용)
+
+# 수집 주기 / 시간대
+collect:
+  interval_min: 5
+  start: "16:00"
+  end: "20:00"
+  weekdays_only: true
+
+# ─────────── 구간 정의 ───────────
+# link_ids 가 있으면 ITS 실시간 속도, 없으면 fixed_min × 피크계수 로 추정 (링크 범위 밖 구간)
+# 노드 순서 = 주행 방향 (과천 22xx → 서울 12xx 이 상행)
+segments:
+  # ── 공통: 남동공단 → 제3경인 끝(갈림길) ──
+  - id: leg_3rd_gyeongin
+    name: "남동공단 → 제3경인 끝 갈림길"
+    route: all
+    link_ids: []
+    fixed_min: 15
+    peak_extra_ratio: 0.3
+
+  # ── A. 수원광명 → 강남순환로 ──
+  - id: a_suwon_gwangmyeong
+    name: "수원광명 + 강남순환로 (금천·봉천터널)"
+    route: A
+    link_ids: []
+    fixed_min: 14
+    peak_extra_ratio: 0.5
+  - id: a_before_sadang
+    name: "봉천터널 나와서 사당IC까지"
+    route: A
+    link_ids: [1200050100]
+    length_km: 1.0
+    free_flow_kmh: 80
+  - id: a_sadang_ramp
+    name: "사당IC 빠지는 램프"
+    route: A
+    link_ids: [1200050500]
+    length_km: 0.5
+    free_flow_kmh: 40
+  - id: a_sadang_to_station
+    name: "사당IC 합류 → 사당역"
+    route: A
+    link_ids: [1210008121, 1210008111, 1210008103]
+    length_km: 0.8
+    free_flow_kmh: 40
+
+  # ── B/C 공통: 110번 외곽순환 → 과천 ──
+  - id: bc_outer_ring
+    name: "110번 외곽순환 → 학의JC → 과천봉담"
+    route: BC
+    link_ids: []
+    fixed_min: 16
+    peak_extra_ratio: 0.4
+  - id: bc_gwacheon
+    name: "과천 시내 (정부청사 앞 과천대로)"
+    route: BC
+    link_ids: [2200023001, 2200023002, 2200023900, 2200024300]
+    length_km: 3.5
+    free_flow_kmh: 55
+
+  # ── B. 선암IC → 우면산터널 ──
+  - id: b_umyeonsan
+    name: "선암IC → 우면산터널 → 서초"
+    route: B
+    link_ids: [2200006804, 1210000401, 1210008901, 1210008902, 1210008903]
+    length_km: 3.4
+    free_flow_kmh: 60
+
+  # ── C. 남태령 → 사당역 ──
+  - id: c_namtaeryeong
+    name: "남태령 고개 → 사당IC"
+    route: C
+    link_ids: [2200027600, 2200028200, 1210008131]
+    length_km: 2.4
+    free_flow_kmh: 55
+  - id: c_sadang_to_station
+    name: "사당IC 합류 → 사당역"
+    route: C
+    link_ids: [1210008121, 1210008111, 1210008103]
+    length_km: 0.8
+    free_flow_kmh: 40
+
+# 루트: 모니터 구간 합 + extra_min (집까지 마지막 구간)
+routes:
+  A:
+    name: "수원광명 → 강남순환로 → 사당IC"
+    short: "수원광명 쪽"
+    includes: [all, A]
+    extra_min: 8        # 사당역 → 방배동
+  B:
+    name: "110번 → 과천 → 우면산터널"
+    short: "110번·우면산터널"
+    includes: [all, BC, B]
+    extra_min: 7        # 터널 출구 → 방배동
+  C:
+    name: "110번 → 과천 → 남태령 → 사당역"
+    short: "110번·남태령"
+    includes: [all, BC, C]
+    extra_min: 8
+
+# 속도 → 상태 임계치 (km/h)
+thresholds:
+  smooth: 40
+  slow: 20
+
+# ─────────── 예측 ───────────
+# 피크 곡선 (모든 fixed_min 구간과 링크 구간 기본값에 공통 적용)
+peak:
+  hour: 17.75
+  width: 0.9
+friday_factor: 1.1
+
+# 링크 구간이 실데이터 없을 때 쓰는 기본 감속 프로파일
+default_profile:
+  all: { peak_hour: 17.75, peak_width: 0.9, max_drop: 0.30 }
+  A:   { peak_hour: 17.75, peak_width: 0.8, max_drop: 0.70 }
+  BC:  { peak_hour: 17.75, peak_width: 0.9, max_drop: 0.40 }
+  B:   { peak_hour: 17.75, peak_width: 0.9, max_drop: 0.35 }
+  C:   { peak_hour: 17.75, peak_width: 0.8, max_drop: 0.75 }
+
+# 돌발·행사 가산: 영향 루트 소요시간 × 계수 (여러 건이면 최대 1개만 적용)
+incident_factors:
+  accident: 1.35      # 사고·고장차
+  construction: 1.15  # 공사
+  control: 1.30       # 집회·행사 통제
+  other: 1.15
+
+weather_factors:
+  rain: 1.25
+  heavy_rain: 1.45
+  snow: 1.8
+
+weather_grid: { nx: 60, ny: 125 }   # 기상청 격자 (서초/과천 부근)
+
+plan:
+  earliest_depart: "15:30"
+  latest_depart: "20:00"
+  push_time: "15:00"         # 오전/오후 예측표 푸시 시각

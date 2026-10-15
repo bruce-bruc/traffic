@@ -1,0 +1,59 @@
+name: 퇴근길 모니터
+
+on:
+  schedule:
+    # UTC 기준. 평일 06:00~11:55 UTC (= 15:00~20:55 KST) 5분마다
+    - cron: "*/5 6-11 * * 1-5"
+    # 그 외 시간은 30분마다 (화면이 너무 오래되지 않게)
+    - cron: "*/30 0-5,12-23 * * 1-5"
+    - cron: "0 * * * 0,6"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: traffic
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Seoul
+      ITS_KEY: ${{ secrets.ITS_KEY }}
+      TOPIS_KEY: ${{ secrets.TOPIS_KEY }}
+      KMA_KEY: ${{ secrets.KMA_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: 수집 + 화면 생성
+        run: python main.py now
+      - name: 기록(traffic.db) 저장
+        run: |
+          git config user.name "traffic-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add data/traffic.db
+          git commit -m "data $(date '+%m-%d %H:%M')" || echo "no change"
+          git push || true
+      - name: 페이지 준비
+        run: |
+          mkdir -p site
+          cp data/dashboard.html site/index.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+  deploy:
+    needs: collect
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
