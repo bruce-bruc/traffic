@@ -13,6 +13,63 @@ EASY = {
 }
 
 
+SEG_COLOR = {"smooth": "#2e9e5b", "slow": "#d9a400", "jam": "#d9403e", "unknown": "#999", "fixed": "#b9bec6"}
+
+
+def route_map_svg(status_by_seg, best):
+    """고정 약도. 구간 id별 상태색으로 선을 칠하고, 추천 루트는 굵게."""
+    c = lambda sid: SEG_COLOR.get(status_by_seg.get(sid, "fixed"), "#b9bec6")
+    w = lambda rid: 9 if rid == best else 5
+    wA, wB, wC = w("A"), w("B"), w("C")
+    wBC = max(wB, wC)
+    dash = lambda sid: ' stroke-dasharray="6 5"' if status_by_seg.get(sid, "fixed") == "fixed" else ""
+    L = lambda sid, d, wd: f'<path d="{d}" stroke="{c(sid)}" stroke-width="{wd}" fill="none" stroke-linecap="round"{dash(sid)}/>'
+    return f"""<svg viewBox="0 0 360 300" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">
+<rect width="360" height="300" fill="#f5f6f8" rx="12"/>
+<!-- 공통: 남동공단 → 제3경인 끝 -->
+{L("leg_3rd_gyeongin", "M30 260 L100 260", max(wA, wBC))}
+<!-- A: 수원광명 → 강남순환로 → 사당IC → 사당역 -->
+{L("a_suwon_gwangmyeong", "M100 260 C150 260 170 150 200 120", wA)}
+{L("a_before_sadang", "M200 120 L225 100", wA)}
+{L("a_sadang_ramp", "M225 100 L235 85", wA)}
+{L("a_sadang_to_station", "M235 85 L250 55", wA)}
+<!-- B/C: 110번 → 과천 -->
+{L("bc_outer_ring", "M100 260 C160 275 230 265 270 225", wBC)}
+{L("bc_gwacheon", "M270 225 L275 180", wBC)}
+<!-- B: 선암IC → 우면산터널 → 서초 -->
+{L("b_umyeonsan", "M275 180 C300 150 310 100 300 60", wB)}
+<!-- C: 남태령 → 사당역 -->
+{L("c_namtaeryeong", "M275 180 C265 150 255 120 245 100", wC)}
+{L("c_sadang_to_station", "M245 100 L250 55", wC)}
+<!-- 집 -->
+<path d="M250 55 L265 30" stroke="#888" stroke-width="4" fill="none" stroke-linecap="round"/>
+<path d="M300 60 L270 30" stroke="#888" stroke-width="4" fill="none" stroke-linecap="round"/>
+<!-- 지점 -->
+<g font-family="-apple-system,Noto Sans KR,sans-serif" font-size="12" fill="#333">
+<circle cx="30" cy="260" r="6" fill="#1f3a5f"/><text x="8" y="284">남동공단</text>
+<circle cx="100" cy="260" r="6" fill="#1f3a5f"/><text x="82" y="246" font-weight="700">갈림길</text><text x="70" y="284" font-size="10" fill="#666">(제3경인 끝)</text>
+<text x="118" y="190" fill="#555">수원광명</text><text x="118" y="204" fill="#555">강남순환로</text>
+<text x="160" y="292" fill="#555">110번 외곽순환</text>
+<circle cx="270" cy="225" r="5" fill="#1f3a5f"/><text x="282" y="229">과천</text>
+<circle cx="275" cy="180" r="5" fill="#1f3a5f"/><text x="285" y="184">선암IC</text>
+<text x="196" y="138" fill="#555">남태령</text>
+<circle cx="225" cy="100" r="5" fill="#1f3a5f"/><text x="150" y="104">사당IC</text>
+<text x="312" y="120" fill="#555">우면산</text><text x="312" y="134" fill="#555">터널</text>
+<circle cx="250" cy="55" r="6" fill="#1f3a5f"/><text x="192" y="60">사당역</text>
+<circle cx="300" cy="60" r="5" fill="#1f3a5f"/><text x="310" y="64">서초</text>
+<text x="256" y="22" font-size="16">🏠</text><text x="278" y="22" font-size="11" fill="#333">방배동 집</text>
+</g>
+<g font-family="-apple-system,Noto Sans KR,sans-serif" font-size="10" fill="#555">
+<rect x="10" y="10" width="178" height="34" rx="6" fill="#fff" opacity=".9"/>
+<line x1="18" y1="20" x2="34" y2="20" stroke="#2e9e5b" stroke-width="4"/><text x="38" y="24">원활</text>
+<line x1="60" y1="20" x2="76" y2="20" stroke="#d9a400" stroke-width="4"/><text x="80" y="24">서행</text>
+<line x1="102" y1="20" x2="118" y2="20" stroke="#d9403e" stroke-width="4"/><text x="122" y="24">정체</text>
+<line x1="18" y1="36" x2="34" y2="36" stroke="#b9bec6" stroke-width="4" stroke-dasharray="4 3"/><text x="38" y="40">추정</text>
+<text x="128" y="40" font-weight="700">굵은선=추천</text>
+</g>
+</svg>"""
+
+
 def build_dashboard():
     from predict import plan, fmt_row
     from sources import fetch_weather, fetch_incidents
@@ -72,6 +129,9 @@ def build_dashboard():
     if weather and (weather.get("rain_mm") or weather.get("snow")):
         warn += (" · " if warn else "") + "🌧 " + weather.get("desc", "비")
 
+    status_by_seg = {seg: st for seg, spd, st, mn, mode in latest}
+    map_svg = route_map_svg(status_by_seg, best_route)
+
     # ── 출발 시각 선택용 데이터 ──
     SHORT = {rid: r["short"] for rid, r in cfg["routes"].items()}
     picker = [dict(d=r["depart"].strftime("%H:%M"), b=r["best"],
@@ -112,6 +172,7 @@ body{{font-family:-apple-system,"Noto Sans KR",sans-serif;margin:0;padding:16px;
 .big .a{{font-size:18px}} .big .s{{font-size:12px;opacity:.7;margin-top:8px}}
 .route{{background:#fff;border-radius:14px;padding:16px;margin-bottom:12px;font-size:17px;box-shadow:0 1px 2px rgba(0,0,0,.06)}}
 .route b{{display:block;font-size:20px;margin-bottom:4px}} .route .l{{font-size:13px;color:#666;margin-bottom:4px}}
+.mapbox{{background:#fff;border-radius:14px;padding:8px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.06)}}
 .pick{{background:#fff;border-radius:14px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.06)}}
 .pick .pl{{font-size:13px;color:#666;margin-bottom:8px}} .pick .row{{display:flex;gap:8px;align-items:center}}
 .pick select{{flex:1;font-size:22px;font-weight:700;padding:8px;border:1px solid #ddd;border-radius:10px;background:#fff;color:#222}}
@@ -144,6 +205,8 @@ canvas{{width:100%;margin-top:8px}}
   {EASY[best_route].split(' (')[1].rstrip(')')}</div>
 
 {f'<div class="warn">{warn}</div>' if warn else ''}
+
+<div class="mapbox">{map_svg}</div>
 
 <div class="pick">
   <div class="pl">출발 예정 시각 고르기</div>
