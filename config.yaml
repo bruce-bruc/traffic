@@ -96,18 +96,19 @@ segments:
 
   # ── C. 남태령 → 사당역 ──
   - id: c_namtaeryeong
-    name: "남태령 고개 (과천 쪽 오르막)"
+    name: "남태령 고개 → 사당IC"
     route: C
-    link_ids: []
-    fixed_min: 2
-    peak_extra_ratio: 1.2
+    source: seoul_topis
+    link_ids: [1210008100]        # 서울시 링크(남태령 서울측~사당역) 속도를 고개 구간에 적용
+    length_km: 2.0
+    free_flow_kmh: 50
   - id: c_sadang_to_station
-    name: "남태령 서울쪽 → 사당IC → 사당역"
+    name: "사당IC → 사당역"
     route: C
     source: seoul_topis
     link_ids: [1210008100]
-    length_km: 1.6
-    free_flow_kmh: 45
+    length_km: 0.8
+    free_flow_kmh: 40
 
 # 루트: 모니터 구간 합 + extra_min (집까지 마지막 구간)
 routes:
