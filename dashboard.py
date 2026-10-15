@@ -149,6 +149,9 @@ canvas{{width:100%;margin-top:8px}}
   <div class="pl">출발 예정 시각 고르기</div>
   <div class="row"><button id="pm" class="pb">−</button><select id="ps"></select><button id="pp" class="pb">+</button></div>
   <div id="pr" class="prs"></div>
+  <div class="pl" style="margin-top:14px">몇 시까지 도착해야 하나요?</div>
+  <div class="row"><button id="am" class="pb">−</button><select id="as"></select><button id="ap" class="pb">+</button></div>
+  <div id="ar" class="prs"></div>
 </div>
 
 <div class="two">
@@ -179,6 +182,21 @@ function show(){{const r=P[ps.value];if(!r)return;try{{localStorage.setItem('dep
   pr.innerHTML='<b>'+r.a+' 도착</b> · '+r.t+'분<br>👉 '+SHORT[r.b]+'<div class="alt">다른 길: '+alts+'</div>';}}
 ps.onchange=show;document.getElementById('pm').onclick=()=>{{if(ps.value>0){{ps.value--;show();}}}};
 document.getElementById('pp').onclick=()=>{{if(ps.value<P.length-1){{ps.value++;show();}}}};show();
+// 도착 희망 시각 → 늦어도 언제 출발
+const as_=document.getElementById('as'),ar=document.getElementById('ar');
+const toM=t=>{{const [h,m]=t.split(':').map(Number);return h*60+m;}};
+const arrs=[];for(let m=toM(P[0].d)+30;m<=toM(P[P.length-1].d)+90;m+=10)arrs.push(String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'));
+arrs.forEach((t,i)=>{{const o=document.createElement('option');o.value=i;o.textContent=t+' 까지';as_.appendChild(o);}});
+let sv=null;try{{sv=localStorage.getItem('arrive');}}catch(e){{}}
+as_.value=Math.max(0,sv!==null&&arrs.indexOf(sv)>=0?arrs.indexOf(sv):arrs.indexOf('19:00'));
+function showA(){{const t=arrs[as_.value];if(!t)return;try{{localStorage.setItem('arrive',t);}}catch(e){{}}
+  const ok=P.filter(r=>toM(r.a)<=toM(t));
+  if(!ok.length){{ar.innerHTML='<b>그 시각엔 못 가요</b><div class="alt">가장 이른 도착이 '+P[0].a+' 입니다</div>';return;}}
+  const last=ok[ok.length-1];
+  ar.innerHTML='<b>늦어도 '+last.d+' 출발</b> · '+last.t+'분 → '+last.a+' 도착<br>👉 '+SHORT[last.b]+
+    '<div class="alt">여유 있게는 '+(ok.length>2?ok[ok.length-3].d:ok[0].d)+' 출발</div>';}}
+as_.onchange=showA;document.getElementById('am').onclick=()=>{{if(as_.value>0){{as_.value--;showA();}}}};
+document.getElementById('ap').onclick=()=>{{if(as_.value<arrs.length-1){{as_.value++;showA();}}}};showA();
 const data={json.dumps(by_seg, ensure_ascii=False)}, names={json.dumps(names, ensure_ascii=False)};
 const cv=document.getElementById('c');
 function draw(){{const ctx=cv.getContext('2d');cv.width=cv.clientWidth*2;cv.height=400;ctx.scale(2,2);
