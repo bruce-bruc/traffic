@@ -53,19 +53,21 @@ segments:
   - id: a_before_sadang
     name: "봉천터널 나와서 사당IC까지"
     route: A
-    link_ids: [1200050100]
+    source: seoul_topis
+    link_ids: [1209910060]
     length_km: 1.0
     free_flow_kmh: 80
   - id: a_sadang_ramp
     name: "사당IC 빠지는 램프"
     route: A
-    link_ids: [1200050500]
-    length_km: 0.5
-    free_flow_kmh: 40
+    link_ids: []
+    fixed_min: 1
+    peak_extra_ratio: 1.5
   - id: a_sadang_to_station
     name: "사당IC 합류 → 사당역"
     route: A
-    link_ids: [1210008121, 1210008111, 1210008103]
+    source: seoul_topis
+    link_ids: [1210008100]        # 서울시 링크: 남태령(서울측)~사당역 전체 평균
     length_km: 0.8
     free_flow_kmh: 40
 
@@ -79,31 +81,33 @@ segments:
   - id: bc_gwacheon
     name: "과천 시내 (정부청사 앞 과천대로)"
     route: BC
-    link_ids: [2200023001, 2200023002, 2200023900, 2200024300]
-    length_km: 3.5
-    free_flow_kmh: 55
+    link_ids: []
+    fixed_min: 4
+    peak_extra_ratio: 0.6
 
   # ── B. 선암IC → 우면산터널 ──
   - id: b_umyeonsan
     name: "선암IC → 우면산터널 → 서초"
     route: B
-    link_ids: [2200006804, 1210000401, 1210008901, 1210008902, 1210008903]
+    source: seoul_topis
+    link_ids: [1210000400, 1210008900]
     length_km: 3.4
     free_flow_kmh: 60
 
   # ── C. 남태령 → 사당역 ──
   - id: c_namtaeryeong
-    name: "남태령 고개 → 사당IC"
+    name: "남태령 고개 (과천 쪽 오르막)"
     route: C
-    link_ids: [2200027600, 2200028200, 1210008131]
-    length_km: 2.4
-    free_flow_kmh: 55
+    link_ids: []
+    fixed_min: 2
+    peak_extra_ratio: 1.2
   - id: c_sadang_to_station
-    name: "사당IC 합류 → 사당역"
+    name: "남태령 서울쪽 → 사당IC → 사당역"
     route: C
-    link_ids: [1210008121, 1210008111, 1210008103]
-    length_km: 0.8
-    free_flow_kmh: 40
+    source: seoul_topis
+    link_ids: [1210008100]
+    length_km: 1.6
+    free_flow_kmh: 45
 
 # 루트: 모니터 구간 합 + extra_min (집까지 마지막 구간)
 routes:

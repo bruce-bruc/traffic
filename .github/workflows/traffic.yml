@@ -23,7 +23,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TZ: Asia/Seoul
-      ITS_KEY: ${{ secrets.ITS_KEY }}
       TOPIS_KEY: ${{ secrets.TOPIS_KEY }}
       KMA_KEY: ${{ secrets.KMA_KEY }}
     steps:
@@ -47,16 +46,12 @@ jobs:
           cp data/dashboard.html site/index.html
           {
             echo "== $(date) =="
-            echo "-- ITS trafficInfo --"
-            curl -s -m 20 -o /tmp/its.json -w "http=%{http_code} time=%{time_total}s\n" \
-              "https://openapi.its.go.kr:9443/trafficInfo?apiKey=$ITS_KEY&type=all&getType=json&minX=126.96&maxX=127.04&minY=37.44&maxY=37.49" || echo "curl failed: $?"
-            head -c 400 /tmp/its.json; echo
             echo "-- TOPIS --"
             curl -s -m 20 -o /tmp/topis.xml -w "http=%{http_code} time=%{time_total}s\n" \
               "http://openapi.seoul.go.kr:8088/$TOPIS_KEY/xml/TrafficInfo/1/5/1220003800" || echo "curl failed: $?"
             head -c 400 /tmp/topis.xml; echo
           } > site/debug.txt 2>&1 || true
-          sed -i "s/$ITS_KEY/ITS_KEY/g; s/$TOPIS_KEY/TOPIS_KEY/g" site/debug.txt
+          sed -i "s/$TOPIS_KEY/TOPIS_KEY/g" site/debug.txt
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
