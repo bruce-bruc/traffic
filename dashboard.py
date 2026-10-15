@@ -28,36 +28,36 @@ def route_map_svg(status_by_seg, best):
 <rect width="360" height="300" fill="#f5f6f8" rx="12"/>
 <!-- 공통: 남동공단 → 제3경인 끝 -->
 {L("leg_3rd_gyeongin", "M30 260 L100 260", max(wA, wBC))}
-<!-- A: 수원광명 → 강남순환로 → 사당IC → 사당역 -->
-{L("a_suwon_gwangmyeong", "M100 260 C150 260 170 150 200 120", wA)}
-{L("a_before_sadang", "M200 120 L225 100", wA)}
-{L("a_sadang_ramp", "M225 100 L235 85", wA)}
-{L("a_sadang_to_station", "M235 85 L250 55", wA)}
-<!-- B/C: 110번 → 과천 -->
+<!-- A: 수원광명 → 강남순환로(관악터널) → 사당IC -->
+{L("a_suwon_gwangmyeong", "M100 260 C140 262 160 170 190 130", wA)}
+{L("a_before_sadang", "M190 130 L205 112", wA)}
+{L("a_sadang_ramp", "M205 112 L220 100", wA)}
+<!-- B/C: 110번 → 과천 → 선암IC -->
 {L("bc_outer_ring", "M100 260 C160 275 230 265 270 225", wBC)}
-{L("bc_gwacheon", "M270 225 L275 180", wBC)}
+{L("bc_gwacheon", "M270 225 L278 180", wBC)}
+<!-- C: 선암IC → 남태령 → 사당IC -->
+{L("c_namtaeryeong", "M278 180 C265 150 245 120 220 100", wC)}
+<!-- 사당IC → 사당역 (A·C 공통) -->
+{L("a_sadang_to_station", "M220 100 L245 55", max(wA, wC))}
 <!-- B: 선암IC → 우면산터널 → 서초 -->
-{L("b_umyeonsan", "M275 180 C300 150 310 100 300 60", wB)}
-<!-- C: 남태령 → 사당역 -->
-{L("c_namtaeryeong", "M275 180 C265 150 255 120 245 100", wC)}
-{L("c_sadang_to_station", "M245 100 L250 55", wC)}
+{L("b_umyeonsan", "M278 180 C305 150 315 100 300 60", wB)}
 <!-- 집 -->
-<path d="M250 55 L265 30" stroke="#888" stroke-width="4" fill="none" stroke-linecap="round"/>
+<path d="M245 55 L262 30" stroke="#888" stroke-width="4" fill="none" stroke-linecap="round"/>
 <path d="M300 60 L270 30" stroke="#888" stroke-width="4" fill="none" stroke-linecap="round"/>
 <!-- 지점 -->
 <g font-family="-apple-system,Noto Sans KR,sans-serif" font-size="12" fill="#333">
 <circle cx="30" cy="260" r="6" fill="#1f3a5f"/><text x="8" y="284">남동공단</text>
 <circle cx="100" cy="260" r="6" fill="#1f3a5f"/><text x="82" y="246" font-weight="700">갈림길</text><text x="70" y="284" font-size="10" fill="#666">(제3경인 끝)</text>
-<text x="118" y="190" fill="#555">수원광명</text><text x="118" y="204" fill="#555">강남순환로</text>
+<text x="108" y="186" fill="#555">수원광명</text><text x="108" y="200" fill="#555">강남순환로</text><text x="108" y="214" fill="#555" font-size="10">(관악터널)</text>
 <text x="160" y="292" fill="#555">110번 외곽순환</text>
 <circle cx="270" cy="225" r="5" fill="#1f3a5f"/><text x="282" y="229">과천</text>
-<circle cx="275" cy="180" r="5" fill="#1f3a5f"/><text x="285" y="184">선암IC</text>
-<text x="196" y="138" fill="#555">남태령</text>
-<circle cx="225" cy="100" r="5" fill="#1f3a5f"/><text x="150" y="104">사당IC</text>
-<text x="312" y="120" fill="#555">우면산</text><text x="312" y="134" fill="#555">터널</text>
-<circle cx="250" cy="55" r="6" fill="#1f3a5f"/><text x="192" y="60">사당역</text>
+<circle cx="278" cy="180" r="6" fill="#1f3a5f"/><text x="288" y="184" font-weight="700">선암IC</text>
+<text x="226" y="150" fill="#333" font-weight="700">남태령</text>
+<circle cx="220" cy="100" r="6" fill="#1f3a5f"/><text x="150" y="104" font-weight="700">사당IC</text>
+<text x="314" y="118" fill="#555">우면산</text><text x="314" y="132" fill="#555">터널</text>
+<circle cx="245" cy="55" r="6" fill="#1f3a5f"/><text x="188" y="60">사당역</text>
 <circle cx="300" cy="60" r="5" fill="#1f3a5f"/><text x="310" y="64">서초</text>
-<text x="256" y="22" font-size="16">🏠</text><text x="278" y="22" font-size="11" fill="#333">방배동 집</text>
+<text x="252" y="22" font-size="16">🏠</text><text x="274" y="22" font-size="11" fill="#333">방배동 집</text>
 </g>
 <g font-family="-apple-system,Noto Sans KR,sans-serif" font-size="10" fill="#555">
 <rect x="10" y="10" width="178" height="34" rx="6" fill="#fff" opacity=".9"/>
