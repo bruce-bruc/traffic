@@ -31,7 +31,7 @@ def build_dashboard():
     weather = fetch_weather(cfg)
     incidents = fetch_incidents(cfg)
     from predict import best_windows
-    rows = plan(cfg, weather=weather, incidents=incidents)
+    rows = plan(cfg, step_min=5, weather=weather, incidents=incidents)
     worst, before_r, after_r = best_windows(cfg, rows)
     before = [before_r] if before_r else []
     after = [after_r] if after_r else []
@@ -72,6 +72,15 @@ def build_dashboard():
     if weather and (weather.get("rain_mm") or weather.get("snow")):
         warn += (" · " if warn else "") + "🌧 " + weather.get("desc", "비")
 
+    # ── 출발 시각 선택용 데이터 ──
+    SHORT = {rid: r["short"] for rid, r in cfg["routes"].items()}
+    picker = [dict(d=r["depart"].strftime("%H:%M"), b=r["best"],
+                   t=round(r["routes"][r["best"]]["total"]),
+                   a=r["routes"][r["best"]]["arrive"].strftime("%H:%M"),
+                   all={rid: round(v["total"]) for rid, v in r["routes"].items()}) for r in rows]
+    # 기본 선택: 지금 이후 첫 슬롯
+    default_i = next((i for i, r in enumerate(rows) if r["depart"] >= now), 0)
+
     # ── 상세 (접힘) ──
     SEG_EASY = {sg["id"]: sg["name"] for sg in cfg["segments"]}
     color = {"smooth": "#2e9e5b", "slow": "#d9a400", "jam": "#d9403e", "unknown": "#888"}
@@ -103,6 +112,11 @@ body{{font-family:-apple-system,"Noto Sans KR",sans-serif;margin:0;padding:16px;
 .big .a{{font-size:18px}} .big .s{{font-size:12px;opacity:.7;margin-top:8px}}
 .route{{background:#fff;border-radius:14px;padding:16px;margin-bottom:12px;font-size:17px;box-shadow:0 1px 2px rgba(0,0,0,.06)}}
 .route b{{display:block;font-size:20px;margin-bottom:4px}} .route .l{{font-size:13px;color:#666;margin-bottom:4px}}
+.pick{{background:#fff;border-radius:14px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.06)}}
+.pick .pl{{font-size:13px;color:#666;margin-bottom:8px}} .pick .row{{display:flex;gap:8px;align-items:center}}
+.pick select{{flex:1;font-size:22px;font-weight:700;padding:8px;border:1px solid #ddd;border-radius:10px;background:#fff;color:#222}}
+.pb{{width:44px;height:44px;font-size:24px;border:0;border-radius:10px;background:#eef1f5;color:#222}}
+.prs{{margin-top:10px;font-size:15px;line-height:1.6}} .prs b{{font-size:20px}} .prs .alt{{font-size:13px;color:#666}}
 .two{{display:flex;gap:10px;margin-bottom:12px}}
 .box{{flex:1;border-radius:14px;padding:14px 12px;color:#fff}} .box.good{{background:#2e9e5b}} .box.bad{{background:#d9403e}}
 .box .t{{font-size:13px;opacity:.9}} .box .h{{font-size:24px;font-weight:700;margin:4px 0}} .box .d{{font-size:13px;opacity:.95;line-height:1.4}}
@@ -131,6 +145,12 @@ canvas{{width:100%;margin-top:8px}}
 
 {f'<div class="warn">{warn}</div>' if warn else ''}
 
+<div class="pick">
+  <div class="pl">출발 예정 시각 고르기</div>
+  <div class="row"><button id="pm" class="pb">−</button><select id="ps"></select><button id="pp" class="pb">+</button></div>
+  <div id="pr" class="prs"></div>
+</div>
+
 <div class="two">
   <div class="box good"><div class="t">🟢 가장 빨리 (이르게)</div><div class="h">{fastest['depart']:%H:%M} 출발</div>
     <div class="d">{ft['arrive']:%H:%M} 도착 · {ft['total']:.0f}분<br>{cfg['routes'][fastest['best']]['short']}</div></div>
@@ -149,6 +169,16 @@ canvas{{width:100%;margin-top:8px}}
 <div class="foot">마지막 수집 {latest_ts.replace('T',' ') if latest_ts else '-'} · 5분마다 자동 새로고침</div>
 
 <script>
+const P={json.dumps(picker, ensure_ascii=False)}, SHORT={json.dumps(SHORT, ensure_ascii=False)};
+const ps=document.getElementById('ps'),pr=document.getElementById('pr');
+P.forEach((r,i)=>{{const o=document.createElement('option');o.value=i;o.textContent=r.d+' 출발';ps.appendChild(o);}});
+let saved=null;try{{saved=localStorage.getItem('depart');}}catch(e){{}}
+ps.value=(saved!==null&&P.some((r,i)=>r.d===saved&&(ps.value=i,true)))?ps.value:{default_i};
+function show(){{const r=P[ps.value];if(!r)return;try{{localStorage.setItem('depart',r.d);}}catch(e){{}}
+  const alts=Object.entries(r.all).filter(([k])=>k!==r.b).map(([k,v])=>SHORT[k]+' '+v+'분').join(' · ');
+  pr.innerHTML='<b>'+r.a+' 도착</b> · '+r.t+'분<br>👉 '+SHORT[r.b]+'<div class="alt">다른 길: '+alts+'</div>';}}
+ps.onchange=show;document.getElementById('pm').onclick=()=>{{if(ps.value>0){{ps.value--;show();}}}};
+document.getElementById('pp').onclick=()=>{{if(ps.value<P.length-1){{ps.value++;show();}}}};show();
 const data={json.dumps(by_seg, ensure_ascii=False)}, names={json.dumps(names, ensure_ascii=False)};
 const cv=document.getElementById('c');
 function draw(){{const ctx=cv.getContext('2d');cv.width=cv.clientWidth*2;cv.height=400;ctx.scale(2,2);
