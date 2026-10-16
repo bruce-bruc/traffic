@@ -2,20 +2,16 @@ name: 퇴근길 모니터
 
 on:
   schedule:
-    # UTC 기준. 평일 06:00~11:55 UTC (= 15:00~20:55 KST) 5분마다
-    - cron: "*/5 6-11 * * 1-5"
-    # 그 외 시간은 30분마다 (화면이 너무 오래되지 않게)
-    - cron: "*/30 0-5,12-23 * * 1-5"
-    - cron: "0 * * * 0,6"
+    - cron: "25 5 * * 1-5"      # 14:25 KST 평일: 21:00 까지 5분마다 계속 수집 (한 작업)
+    - cron: "0 12-20,22 * * 1-5" # 그 외 시간 1시간마다 한 번
+    - cron: "0 */2 * * 0,6"      # 주말 2시간마다
   workflow_dispatch:
   push:
     branches: [main]
-    paths-ignore: ["data/**"]      # 봇의 데이터 커밋으로는 재실행 안 함
+    paths-ignore: ["data/**"]
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 concurrency:
   group: traffic
@@ -24,46 +20,29 @@ concurrency:
 jobs:
   collect:
     runs-on: ubuntu-latest
+    timeout-minutes: 400
     env:
       TZ: Asia/Seoul
       TOPIS_KEY: ${{ secrets.TOPIS_KEY }}
       KMA_KEY: ${{ secrets.KMA_KEY }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
-      - name: 수집 + 화면 생성
-        run: python main.py now
-      - name: 기록(traffic.db) 저장
+      - name: 수집 루프
         run: |
-          git config user.name "traffic-bot"
-          git config user.email "bot@users.noreply.github.com"
-          git add data/traffic.db
-          git commit -m "data $(date '+%m-%d %H:%M')" || echo "no change"
-          git push || true
-      - name: 페이지 준비 (+ 진단)
-        run: |
-          mkdir -p site
-          cp data/dashboard.html site/index.html
-          {
-            echo "== $(date) =="
-            echo "-- TOPIS --"
-            curl -s -m 20 -o /tmp/topis.xml -w "http=%{http_code} time=%{time_total}s\n" \
-              "http://openapi.seoul.go.kr:8088/$TOPIS_KEY/xml/TrafficInfo/1/5/1220003800" || echo "curl failed: $?"
-            head -c 400 /tmp/topis.xml; echo
-          } > site/debug.txt 2>&1 || true
-          sed -i "s/$TOPIS_KEY/TOPIS_KEY/g" site/debug.txt
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-  deploy:
-    needs: collect
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          # 평일 14:00~21:00 KST 사이에 시작했으면 21:00 까지 5분마다 반복, 아니면 한 번만
+          START=$(date +%s)
+          while true; do
+            ./run.sh || echo "run failed"
+            H=$(date +%H); DOW=$(date +%u)
+            NOW=$(date +%s)
+            if [ "$DOW" -ge 6 ] || [ "$H" -lt 14 ] || [ "$H" -ge 21 ] || [ $((NOW-START)) -gt 22800 ]; then
+              echo "loop end"; break
+            fi
+            sleep 300
+          done
