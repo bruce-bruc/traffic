@@ -2,9 +2,7 @@ name: 퇴근길 모니터
 
 on:
   schedule:
-    - cron: "25 5 * * 1-5"      # 14:25 KST 평일: 21:00 까지 5분마다 계속 수집 (한 작업)
-    - cron: "0 12-20,22 * * 1-5" # 그 외 시간 1시간마다 한 번
-    - cron: "0 */2 * * 0,6"      # 주말 2시간마다
+    - cron: "40 5 * * 1-5"      # 14:40 KST 평일 (GitHub 지연 감안) → 15:00~19:00 5분마다 계속 수집
   workflow_dispatch:
   push:
     branches: [main]
@@ -20,7 +18,7 @@ concurrency:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 400
+    timeout-minutes: 330
     env:
       TZ: Asia/Seoul
       TOPIS_KEY: ${{ secrets.TOPIS_KEY }}
@@ -35,13 +33,13 @@ jobs:
       - run: pip install -r requirements.txt
       - name: 수집 루프
         run: |
-          # 평일 14:00~21:00 KST 사이에 시작했으면 21:00 까지 5분마다 반복, 아니면 한 번만
+          # 평일 14:30~19:00 KST 사이에 시작했으면 19:00 까지 5분마다 반복, 아니면 한 번만
           START=$(date +%s)
           while true; do
             ./run.sh || echo "run failed"
-            H=$(date +%H); DOW=$(date +%u)
+            HM=$(date +%H%M); DOW=$(date +%u)
             NOW=$(date +%s)
-            if [ "$DOW" -ge 6 ] || [ "$H" -lt 14 ] || [ "$H" -ge 21 ] || [ $((NOW-START)) -gt 22800 ]; then
+            if [ "$DOW" -ge 6 ] || [ "$HM" -lt 1430 ] || [ "$HM" -ge 1900 ] || [ $((NOW-START)) -gt 18000 ]; then
               echo "loop end"; break
             fi
             sleep 300
