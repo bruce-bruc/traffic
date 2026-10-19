@@ -2,7 +2,12 @@ name: 퇴근길 모니터
 
 on:
   schedule:
-    - cron: "40 5 * * 1-5"      # 14:40 KST 평일 (GitHub 지연 감안) → 15:00~19:00 5분마다 계속 수집
+    # 14:40 / 14:55 / 15:10 KST 세 번 시도 (GitHub 가 예약을 자주 건너뛰므로). 동시실행 방지돼 있어 하나만 돎.
+    - cron: "40 5 * * 1-5"
+    - cron: "55 5 * * 1-5"
+    - cron: "10 6 * * 1-5"
+  repository_dispatch:
+    types: [kick]
   workflow_dispatch:
   push:
     branches: [main]
