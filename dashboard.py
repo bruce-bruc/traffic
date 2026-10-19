@@ -70,7 +70,7 @@ def route_map_svg(status_by_seg, best):
 </svg>"""
 
 
-ROUTE_SHORT = {"A": "수원광명", "BC": "110번·과천", "B": "우면산터널", "C": "남태령", "?": "구간 미상"}
+ROUTE_SHORT = {"all": "제3경인(공통)", "A": "수원광명", "BC": "110번·과천", "B": "우면산터널", "C": "남태령", "?": "구간 미상"}
 
 
 def _issue_icon(i):
@@ -168,8 +168,7 @@ def build_dashboard():
         tips.append("🌙 풀린 뒤: " + fmt_opt(after[0]))
     warn = ""
     if incidents:
-        SH = {"A": "수원광명", "BC": "110번", "B": "우면산", "C": "남태령", "?": "?"}
-        warn = "<br>".join(f"⚠ <b>{'/'.join(SH.get(r, r) for r in i.get('routes', []))}</b> {i['text'][:40]}" for i in incidents[:3])
+        warn = "<br>".join(f"⚠ <b>{'/'.join(ROUTE_SHORT.get(r, r) for r in i.get('routes', []))}</b> {_esc(i['text'][:40])}" for i in incidents[:3])
     if weather and (weather.get("rain_mm") or weather.get("snow")):
         warn += (" · " if warn else "") + "🌧 " + weather.get("desc", "비")
 

@@ -93,8 +93,10 @@ def seoul_topis_find_links(road_name, xlsx_path=None):
 
 # ── ITS 국가교통정보센터 ──────────────────────────────
 ITS_BASE = "https://openapi.its.go.kr:9443"   # 포트 9443 필수
-# 사당역~선암IC 일대 바운딩 박스
+# 사당역~선암IC 일대 바운딩 박스 (링크 속도 조회용 — 좁게)
 ITS_BOX = dict(minX=126.96, maxX=127.04, minY=37.44, maxY=37.49)
+# 돌발 조회용 — 퇴근길 전체: 남동공단(인천) → 제3경인 → 외곽순환·과천봉담 / 수원광명·강남순환 → 사당·서초
+ITS_EVENT_BOX = dict(minX=126.70, maxX=127.06, minY=37.34, maxY=37.50)
 
 _ITS_CACHE = {"t": 0, "items": []}
 
@@ -139,13 +141,29 @@ def its_find_links(key):
 def its_incidents(key):
     """돌발(사고·공사) — eventInfo. 실패하면 빈 목록."""
     try:
-        params = dict(apiKey=key, type="all", eventType="all", getType="json", **ITS_BOX)
+        params = dict(apiKey=key, type="all", eventType="all", getType="json", **ITS_EVENT_BOX)
         r = requests.get(ITS_BASE + "/eventInfo", params=params, timeout=TIMEOUT)
-        body = r.json().get("body", {})
-        items = body.get("items", [])
-        return [dict(text=f"{i.get('roadName','')} {i.get('message','')}".strip(),
-                     start=i.get("startDate", ""), type=i.get("eventType", "") or "돌발")
-                for i in items if any(k in f"{i.get('roadName','')} {i.get('message','')}" for k in INCIDENT_KEYWORDS)]
+        r.raise_for_status()
+        j = r.json()
+        body = j.get("body", j)
+        items = body.get("items", body.get("item", [])) or []
+        if isinstance(items, dict):
+            items = items.get("item", [items])
+        out = []
+        for i in items:
+            road = str(i.get("roadName", "") or "")
+            msg = str(i.get("message", "") or "")
+            if not any(k in road + " " + msg for k in INCIDENT_KEYWORDS):
+                continue
+            kind = str(i.get("eventType", "") or "돌발")
+            detail = str(i.get("eventDetailType", "") or "")
+            label = f"[{kind}{'·' + detail if detail and detail != kind else ''}]"
+            text = f"{label} {road} {msg}".strip()
+            start = str(i.get("startDate", "") or "")
+            if len(start) >= 12 and start.isdigit():           # 202610191720 → 2026-10-19 17:20
+                start = f"{start[:4]}-{start[4:6]}-{start[6:8]} {start[8:10]}:{start[10:12]}"
+            out.append(dict(text=text, start=start, type=kind))
+        return out
     except Exception:
         return []
 
@@ -189,11 +207,12 @@ def fetch_segment(seg, keys, now=None):
 
 
 # ── 돌발정보 (서울시 TOPIS 실시간 돌발) ───────────────────
-INCIDENT_KEYWORDS = ("남태령", "사당", "과천대로", "과천봉담", "동작대로", "우면산", "강남순환", "선암", "봉천터널", "금천터널",
-                     "서초터널", "수원광명", "소하", "외곽순환", "제1순환", "학의", "제3경인")
+INCIDENT_KEYWORDS = ("제3경인", "남동", "시흥", "물왕", "남태령", "사당", "과천대로", "과천봉담", "동작대로", "우면산", "강남순환", "선암", "봉천터널", "금천터널",
+                     "서초터널", "수원광명", "소하", "외곽순환", "제1순환", "학의")
 
 # 이슈 → 영향받는 루트 (A: 수원광명·강남순환, BC: 110번·과천, B: 우면산, C: 남태령)
 ROUTE_KEYWORDS = {
+    "all": ("제3경인", "남동", "시흥", "물왕"),
     "A":  ("강남순환", "봉천터널", "금천터널", "서초터널", "수원광명", "소하", "사당IC", "사당 IC", "사당역", "동작대로"),
     "BC": ("외곽순환", "제1순환", "학의", "과천봉담", "과천대로"),
     "B":  ("우면산", "선암"),

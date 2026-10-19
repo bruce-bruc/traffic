@@ -27,6 +27,7 @@ jobs:
     env:
       TZ: Asia/Seoul
       TOPIS_KEY: ${{ secrets.TOPIS_KEY }}
+      ITS_KEY: ${{ secrets.ITS_KEY }}        # ITS 국가교통정보센터 — 고속도로(제3경인·외곽순환·수원광명) 돌발용
       KMA_KEY: ${{ secrets.KMA_KEY }}
     steps:
       - uses: actions/checkout@v4
