@@ -9,6 +9,7 @@
   python main.py plan           오늘 출발 시각별 예상 도착 + 가장 덜 밀리는 출발 시각
   python main.py eta 17:10      17:10 에 남동공단 출발하면 몇 시 도착?
   python main.py plan push      예측표를 텔레그램으로
+  python main.py issues         내 길에 걸린 이슈(사고·공사·통제·공지) 목록 + 오늘 기록
 """
 import sys, time, datetime as dt
 from monitor import load_config, run_once, weekday_pattern
@@ -150,6 +151,19 @@ if __name__ == "__main__":
     elif cmd == "plan":
         text, _ = run_plan(cfg, push=(len(sys.argv) > 2 and sys.argv[2] == "push"))
         print(text)
+    elif cmd == "issues":
+        from sources import fetch_incidents
+        from monitor import incident_history
+        from dashboard import ROUTE_SHORT
+        cur = fetch_incidents(cfg)
+        print(f"⚠ 지금 내 길 이슈 {len(cur)}건")
+        for i in cur:
+            print(f"  [{'/'.join(ROUTE_SHORT.get(r, r) for r in i['routes'])}] {i['text']}  ({i.get('start','')[:16]})")
+        hist = incident_history(days=1)
+        if hist:
+            print(f"\n최근 24시간 기록 {len(hist)}건")
+            for h in hist:
+                print(f"  {h['first_seen'][5:16]}~{h['last_seen'][11:16]} [{'/'.join(ROUTE_SHORT.get(r, r) for r in h['routes'])}] {h['text']}")
     elif cmd == "eta":
         hm = sys.argv[2] if len(sys.argv) > 2 else dt.datetime.now().strftime("%H:%M")
         depart = dt.datetime.combine(dt.date.today(), dt.time.fromisoformat(hm))

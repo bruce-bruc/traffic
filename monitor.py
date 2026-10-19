@@ -26,6 +26,10 @@ def db():
         ts TEXT, segment TEXT, speed REAL, mode TEXT, status TEXT, minutes REAL)""")
     con.execute("""CREATE TABLE IF NOT EXISTS verdicts(
         ts TEXT, best_route TEXT, totals TEXT, note TEXT)""")
+    # 이슈(돌발·공사·통제·공지) 기록: 같은 이슈는 첫 발견(first_seen)~마지막 발견(last_seen) 으로 한 줄
+    con.execute("""CREATE TABLE IF NOT EXISTS incidents(
+        key TEXT PRIMARY KEY, first_seen TEXT, last_seen TEXT,
+        type TEXT, routes TEXT, start TEXT, text TEXT)""")
     return con
 
 
@@ -114,7 +118,33 @@ def save(con, rows, best, totals, note):
     con.commit()
 
 
-ICON = {"smooth": "🟢", "slow": "🟡", "jam": "🔴", "unknown": "⚪", "fixed": "▫️"}
+def incident_key(i):
+    return f"{i.get('start','')}|{i.get('text','')[:120]}"
+
+
+def save_incidents(con, ts, incidents):
+    """현재 보이는 이슈를 기록 (처음 본 건 추가, 이미 있으면 last_seen 갱신)."""
+    for i in incidents or []:
+        con.execute("""INSERT INTO incidents(key, first_seen, last_seen, type, routes, start, text)
+                       VALUES (?,?,?,?,?,?,?)
+                       ON CONFLICT(key) DO UPDATE SET last_seen=excluded.last_seen""",
+                    (incident_key(i), ts, ts, str(i.get("type", "")), ",".join(i.get("routes", [])),
+                     str(i.get("start", "")), i.get("text", "")))
+    con.commit()
+
+
+def incident_history(days=1):
+    """최근 days 일 동안 기록된 이슈 (최근 발견 순)."""
+    con = db()
+    since = (dt.datetime.now() - dt.timedelta(days=days)).isoformat(timespec="minutes")
+    rows = con.execute("""SELECT first_seen, last_seen, type, routes, start, text FROM incidents
+                          WHERE last_seen >= ? ORDER BY last_seen DESC, first_seen DESC""", (since,)).fetchall()
+    con.close()
+    return [dict(first_seen=a, last_seen=b, type=c, routes=d.split(",") if d else [], start=e, text=f)
+            for a, b, c, d, e, f in rows]
+
+
+ICON ={"smooth": "🟢", "slow": "🟡", "jam": "🔴", "unknown": "⚪", "fixed": "▫️"}
 
 
 def format_summary(cfg, rows, best, totals, note, incidents=None):
@@ -157,6 +187,7 @@ def run_once(cfg=None, push=False, now=None):
     best, totals, note = compare_routes(cfg, rows, incidents)
     con = db()
     save(con, rows, best, totals, note)
+    save_incidents(con, rows[0]["ts"], incidents)
     con.close()
     text = format_summary(cfg, rows, best, totals, note, incidents)
     if push:

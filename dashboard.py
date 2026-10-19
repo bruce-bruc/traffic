@@ -70,9 +70,49 @@ def route_map_svg(status_by_seg, best):
 </svg>"""
 
 
+ROUTE_SHORT = {"A": "수원광명", "BC": "110번·과천", "B": "우면산터널", "C": "남태령", "?": "구간 미상"}
+
+
+def _issue_icon(i):
+    t = str(i.get("type", "")) + i.get("text", "")
+    if any(x in t for x in ("사고", "고장")):
+        return "🚨"
+    if any(x in t for x in ("공사", "작업")):
+        return "🚧"
+    if any(x in t for x in ("통제", "집회", "행사", "마라톤", "퍼레이드")):
+        return "🚫"
+    if i.get("type") == "notice":
+        return "📢"
+    return "⚠"
+
+
+def _esc(s):
+    return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def issues_html(incidents, history):
+    """내 길 이슈 목록: 지금 걸린 이슈 전체 + 오늘 지나간 이슈."""
+    def line(i, extra=""):
+        rt = "/".join(ROUTE_SHORT.get(r, r) for r in i.get("routes", []) or ["?"])
+        meta = " · ".join(x for x in (str(i.get("start", ""))[:16], extra) if x)
+        return (f'<div class="iss">{_issue_icon(i)} <b>[{_esc(rt)}]</b> {_esc(i.get("text", ""))}'
+                f'{f"<small>{_esc(meta)}</small>" if meta else ""}</div>')
+    cur_keys = {f"{i.get('start','')}|{i.get('text','')[:120]}" for i in incidents}
+    today = dt.date.today().isoformat()
+    gone = [h for h in history if f"{h['start']}|{h['text'][:120]}" not in cur_keys and h["first_seen"][:10] == today]
+    body = "".join(line(i) for i in incidents) or '<div class="iss ok">✅ 지금 내 길에 걸린 이슈 없음</div>'
+    if gone:
+        body += '<div class="sub">오늘 지나간 이슈</div>' + "".join(
+            line(h, f"{h['first_seen'][11:16]}~{h['last_seen'][11:16]} 확인됨") for h in gone)
+    body += '<div class="src">출처: 서울시 TOPIS 돌발·통제공지 (사당·남태령·과천·우면산·강남순환 키워드)</div>'
+    return (f'<details{" open" if incidents else ""}><summary>⚠ 내 길 이슈 {len(incidents)}건'
+            f'{f" · 지나간 {len(gone)}건" if gone else ""}</summary>{body}</details>')
+
+
 def build_dashboard():
     from predict import plan, fmt_row
     from sources import fetch_weather, fetch_incidents
+    from monitor import incident_history
     cfg = load_config()
     now = dt.datetime.now()
     con = sqlite3.connect(DB)
@@ -87,6 +127,10 @@ def build_dashboard():
     # ── 예측표 (남동공단 출발 기준) ──
     weather = fetch_weather(cfg)
     incidents = fetch_incidents(cfg)
+    try:
+        issues_box = issues_html(incidents, incident_history(days=1))
+    except Exception as e:
+        issues_box = f'<details><summary>⚠ 내 길 이슈</summary><div class="iss">목록 생성 실패: {_esc(e)}</div></details>'
     from predict import best_windows
     rows = plan(cfg, step_min=5, weather=weather, incidents=incidents)
     worst, before_r, after_r = best_windows(cfg, rows)
@@ -184,6 +228,10 @@ body{{font-family:-apple-system,"Noto Sans KR",sans-serif;margin:0;padding:16px;
 .tips{{background:#fff;border-radius:14px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.06)}}
 .tips div{{padding:6px 0;font-size:15px;border-bottom:1px solid #eee}} .tips div:last-child{{border:0}}
 .warn{{background:#fff3cd;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:14px}}
+.iss{{padding:8px 0;border-bottom:1px solid #eee;font-size:14px;line-height:1.45}} .iss:last-of-type{{border:0}}
+.iss small{{display:block;color:#888;font-size:12px}} .iss.ok{{color:#2e9e5b;font-weight:600}}
+.sub{{font-size:12px;color:#888;margin-top:10px;padding-top:6px;border-top:1px dashed #ddd}}
+.src{{font-size:11px;color:#aaa;margin-top:8px}}
 details{{background:#fff;border-radius:14px;padding:12px 16px;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,.06)}}
 summary{{font-size:15px;font-weight:600;cursor:pointer;padding:4px 0}}
 .card{{display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid #eee}} .card:last-child{{border:0}}
@@ -205,6 +253,8 @@ canvas{{width:100%;margin-top:8px}}
   {EASY[best_route].split(' (')[1].rstrip(')')}</div>
 
 {f'<div class="warn">{warn}</div>' if warn else ''}
+
+{issues_box}
 
 <div class="mapbox">{map_svg}</div>
 
@@ -230,7 +280,7 @@ canvas{{width:100%;margin-top:8px}}
 
 <details><summary>구간별 지금 상태</summary>{cards or '<div class="v">아직 수집 전</div>'}</details>
 
-<details><summary>오늘 속도 그래프</summary><canvas id="c" height="200"></canvas></details>
+<details id="gd"><summary>오늘 속도 그래프</summary><canvas id="c" height="200"></canvas></details>
 
 <div class="foot">마지막 수집 {latest_ts.replace('T',' ') if latest_ts else '-'} · 5분마다 자동 새로고침</div>
 
@@ -271,7 +321,7 @@ Object.entries(data).forEach(([seg,pts],i)=>{{ctx.strokeStyle=cols[i%4];ctx.line
 pts.forEach(([t,v],j)=>{{const x=P+(xs.indexOf(t)/(Math.max(xs.length-1,1)))*(W-P-10),y=H-P-(Math.min(v,vmax)/vmax)*(H-2*P);j?ctx.lineTo(x,y):ctx.moveTo(x,y);}});ctx.stroke();
 ctx.fillStyle=cols[i%4];ctx.fillRect(P+i*85,H-12,10,10);ctx.fillStyle='#444';ctx.fillText((names[seg]||seg).slice(0,7),P+i*85+13,H-3);}});
 xs.filter((_,i)=>i%Math.ceil(xs.length/6)===0).forEach(t=>{{const x=P+(xs.indexOf(t)/(Math.max(xs.length-1,1)))*(W-P-10);ctx.fillStyle='#888';ctx.fillText(t,x-12,H-P+12);}});}}
-document.querySelectorAll('details')[2].addEventListener('toggle',e=>{{if(e.target.open)setTimeout(draw,50);}});
+document.getElementById('gd').addEventListener('toggle',e=>{{if(e.target.open)setTimeout(draw,50);}});
 </script></body></html>"""
     with open(OUT, "w", encoding="utf-8") as f:
         f.write(html)
