@@ -12,8 +12,15 @@ cp data/dashboard.html site/index.html
   curl -s -m 20 -o /tmp/topis.xml -w "topis http=%{http_code} time=%{time_total}s\n" \
     "http://openapi.seoul.go.kr:8088/$TOPIS_KEY/xml/TrafficInfo/1/5/1220003800" || echo "curl failed: $?"
   head -c 300 /tmp/topis.xml; echo
+  if [ -n "$ITS_RELAY" ]; then
+    curl -s -m 40 -o /tmp/relay.json -w "relay http=%{http_code} time=%{time_total}s\n" \
+      "$ITS_RELAY?token=$ITS_RELAY_TOKEN&ep=trafficInfo&type=all&getType=json&minX=126.70&maxX=126.76&minY=37.38&maxY=37.43" || echo "relay curl failed: $?"
+    head -c 300 /tmp/relay.json; echo
+  else
+    echo "relay: not set"
+  fi
 } > site/debug.txt 2>&1 || true
-sed -i "s/$TOPIS_KEY/TOPIS_KEY/g" site/debug.txt
+sed -i "s/$TOPIS_KEY/TOPIS_KEY/g; s#${ITS_RELAY_TOKEN:-__none__}#TOKEN#g" site/debug.txt
 
 if [ ! -d gh-pages ]; then
   git fetch -q origin gh-pages 2>/dev/null && git worktree add -q gh-pages origin/gh-pages 2>/dev/null \

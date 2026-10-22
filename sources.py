@@ -100,14 +100,26 @@ ITS_EVENT_BOX = dict(minX=126.70, maxX=127.06, minY=37.34, maxY=37.50)
 
 _ITS_CACHE = {"t": 0, "items": []}
 
+
+# ── 국내 중계(relay): ITS 는 해외 IP 를 막으므로, 카페24 같은 국내 서버의 its.php 를 거쳐 호출 ──
+def _its_get(endpoint, params):
+    import os
+    relay = os.environ.get("ITS_RELAY", "").strip()
+    if relay:
+        q = {k: v for k, v in params.items() if k != "apiKey"}
+        q.update(ep=endpoint, token=os.environ.get("ITS_RELAY_TOKEN", ""))
+        r = requests.get(relay, params=q, timeout=TIMEOUT + 10)
+    else:
+        r = requests.get(ITS_BASE + "/" + endpoint, params=params, timeout=TIMEOUT)
+    r.raise_for_status()
+    return r.json()
+
 def _its_items(key):
     import time
     if time.time() - _ITS_CACHE["t"] < 120:          # 2분 내 재호출은 캐시 (한도 절약)
         return _ITS_CACHE["items"]
     params = dict(apiKey=key, type="all", getType="json", **ITS_BOX)
-    r = requests.get(ITS_BASE + "/trafficInfo", params=params, timeout=TIMEOUT)
-    r.raise_for_status()
-    j = r.json()
+    j = _its_get("trafficInfo", params)
     body = j.get("body", j)
     items = body.get("items", body.get("item", []))
     if isinstance(items, dict):
@@ -142,9 +154,7 @@ def its_incidents(key):
     """돌발(사고·공사) — eventInfo. 실패하면 빈 목록."""
     try:
         params = dict(apiKey=key, type="all", eventType="all", getType="json", **ITS_EVENT_BOX)
-        r = requests.get(ITS_BASE + "/eventInfo", params=params, timeout=TIMEOUT)
-        r.raise_for_status()
-        j = r.json()
+        j = _its_get("eventInfo", params)
         body = j.get("body", j)
         items = body.get("items", body.get("item", [])) or []
         if isinstance(items, dict):
