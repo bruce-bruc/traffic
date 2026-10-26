@@ -1,4 +1,4 @@
-== Mon Oct 26 21:11:06 KST 2026 ==
-topis http=200 time=0.599013s
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?><TrafficInfo><list_total_count>1</list_total_count><RESULT><CODE>INFO-000</CODE><MESSAGE>정상 처리되었습니다</MESSAGE></RESULT><row><link_id>1220003800</link_id><prcs_spd>75</prcs_spd><prcs_trv_time>144</prcs_trv_time></row></TrafficInf
+== Tue Oct 27 00:41:55 KST 2026 ==
+topis http=200 time=1.215410s
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?><TrafficInfo><list_total_count>1</list_total_count><RESULT><CODE>INFO-000</CODE><MESSAGE>정상 처리되었습니다</MESSAGE></RESULT><row><link_id>1220003800</link_id><prcs_spd>89</prcs_spd><prcs_trv_time>121</prcs_trv_time></row></TrafficInf
 relay: not set
