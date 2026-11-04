@@ -238,6 +238,12 @@ summary{{font-size:15px;font-weight:600;cursor:pointer;padding:4px 0}}
 table{{width:100%;border-collapse:collapse;font-size:13px}} td,th{{padding:6px 4px;border-bottom:1px solid #eee;text-align:left}}
 tr.worst td{{color:#d9403e;font-weight:600}}
 canvas{{width:100%;margin-top:8px}}
+.chart{{background:#fff;border-radius:14px;padding:14px 16px 10px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.06)}}
+.chart .hd{{display:flex;align-items:baseline;justify-content:space-between;gap:8px}}
+.chart .pl{{font-size:13px;color:#666}} .chart .ref{{font-size:34px;font-weight:800;color:#d9403e;line-height:1}}
+.chart .ref small{{font-size:14px;font-weight:600;color:#666;margin-left:4px}}
+.chart .ax{{font-size:11px;color:#888;margin-top:2px}}
+#tc{{margin-top:6px}}
 .foot{{font-size:11px;color:#888;text-align:center;margin-top:10px}}
 </style></head><body>
 
@@ -264,6 +270,12 @@ canvas{{width:100%;margin-top:8px}}
   <div class="pl" style="margin-top:14px">몇 시까지 도착해야 하나요?</div>
   <div class="row"><button id="am" class="pb">−</button><select id="as"></select><button id="ap" class="pb">+</button></div>
   <div id="ar" class="prs"></div>
+</div>
+
+<div class="chart">
+  <div class="hd"><div class="pl">출발 시각 → 집 도착 시각</div><div class="ref">{now:%H:%M}<small>기준 · {src}</small></div></div>
+  <div class="ax">가로: 남동공단 출발 시각 · 세로: 집 도착 시각 · <span style="color:#d9403e">●</span> 지금 출발 · <span style="color:#d9a400">●</span> 가장 위험</div>
+  <canvas id="tc" height="240"></canvas>
 </div>
 
 <div class="two">
@@ -309,6 +321,40 @@ function showA(){{const t=arrs[as_.value];if(!t)return;try{{localStorage.setItem
     '<div class="alt">여유 있게는 '+(ok.length>2?ok[ok.length-3].d:ok[0].d)+' 출발</div>';}}
 as_.onchange=showA;document.getElementById('am').onclick=()=>{{if(as_.value>0){{as_.value--;showA();}}}};
 document.getElementById('ap').onclick=()=>{{if(as_.value<arrs.length-1){{as_.value++;showA();}}}};showA();
+// 출발 시각(x) → 도착 시각(y) 그래프
+const NOW='{now:%H:%M}',NOWA='{arrive:%H:%M}',WORST='{worst['depart']:%H:%M}';
+const tc=document.getElementById('tc');
+function drawT(){{if(!P.length)return;const dpr=2,W=tc.clientWidth,H=240;tc.width=W*dpr;tc.height=H*dpr;
+const ctx=tc.getContext('2d');ctx.scale(dpr,dpr);const L=42,R=14,T=22,B=26;
+const nm=toM(NOW),na=toM(NOWA),xs=P.map(r=>toM(r.d)),ys=P.map(r=>toM(r.a));
+const showNow=nm>=Math.min(...xs)-15&&nm<=Math.max(...xs)+15;
+if(showNow){{xs.push(nm);ys.push(na);}}
+const x0=Math.floor(Math.min(...xs)/30)*30,x1=Math.ceil(Math.max(...xs)/30)*30,y0=Math.floor(Math.min(...ys)/30)*30,y1=Math.ceil(Math.max(...ys)/30)*30;
+const X=m=>L+(m-x0)/(x1-x0||1)*(W-L-R),Y=m=>T+(y1-m)/(y1-y0||1)*(H-T-B);
+const hm=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+ctx.font='10px sans-serif';ctx.lineWidth=1;
+for(let m=y0;m<=y1;m+=30){{ctx.strokeStyle=m%60?'#eef0f3':'#dfe2e7';ctx.beginPath();ctx.moveTo(L,Y(m));ctx.lineTo(W-R,Y(m));ctx.stroke();ctx.fillStyle='#777';ctx.textAlign='right';ctx.fillText(hm(m),L-5,Y(m)+3);}}
+for(let m=x0;m<=x1;m+=30){{ctx.strokeStyle=m%60?'#eef0f3':'#dfe2e7';ctx.beginPath();ctx.moveTo(X(m),T);ctx.lineTo(X(m),H-B);ctx.stroke();ctx.fillStyle='#777';ctx.textAlign='center';ctx.fillText(hm(m),X(m),H-B+14);}}
+// 기준선: 가장 빠를 때 소요시간으로 갔을 경우
+const mt=Math.min(...P.map(r=>r.t));ctx.strokeStyle='#b9bec6';ctx.setLineDash([3,4]);ctx.lineWidth=1;ctx.beginPath();
+ctx.moveTo(X(x0),Y(x0+mt));ctx.lineTo(X(x1),Y(x1+mt));ctx.stroke();ctx.setLineDash([]);
+ctx.fillStyle='#999';ctx.textAlign='right';ctx.fillText('최단 '+mt+'분 기준선',W-R-2,T+10);
+// 예측선 (추천 길 기준 도착)
+ctx.strokeStyle='#1f3a5f';ctx.lineWidth=2.5;ctx.lineJoin='round';ctx.beginPath();
+P.forEach((r,i)=>{{const x=X(toM(r.d)),y=Y(toM(r.a));i?ctx.lineTo(x,y):ctx.moveTo(x,y);}});ctx.stroke();
+ctx.fillStyle='#1f3a5f';P.forEach(r=>{{ctx.beginPath();ctx.arc(X(toM(r.d)),Y(toM(r.a)),2,0,7);ctx.fill();}});
+// 가장 위험한 출발
+const w=P.find(r=>r.d===WORST);
+if(w){{const wx=X(toM(w.d)),wy=Y(toM(w.a));ctx.fillStyle='#d9a400';ctx.beginPath();ctx.arc(wx,wy,5,0,7);ctx.fill();
+ctx.font='bold 11px sans-serif';ctx.textAlign=wx>W*.6?'right':'left';ctx.fillText(w.d+' 출발 → '+w.a,wx+(wx>W*.6?-8:8),wy-8);}}
+// 지금 출발 (기준시간)
+if(showNow){{const nx=X(nm),ny=Y(na);
+ctx.strokeStyle='#d9403e';ctx.setLineDash([4,3]);ctx.lineWidth=1.5;
+ctx.beginPath();ctx.moveTo(nx,T);ctx.lineTo(nx,H-B);ctx.stroke();ctx.beginPath();ctx.moveTo(L,ny);ctx.lineTo(nx,ny);ctx.stroke();ctx.setLineDash([]);
+ctx.fillStyle='#d9403e';ctx.beginPath();ctx.arc(nx,ny,7,0,7);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
+ctx.font='bold 14px sans-serif';ctx.fillStyle='#d9403e';ctx.textAlign=nx>W*.55?'right':'left';
+ctx.fillText('지금 '+NOW+' → '+NOWA+' 도착',nx+(nx>W*.55?-12:12),ny+(w&&Math.abs(Y(toM(w.a))-ny)<22&&Math.abs(X(toM(w.d))-nx)<120?20:-12));}}}}
+drawT();addEventListener('resize',drawT);
 const data={json.dumps(by_seg, ensure_ascii=False)}, names={json.dumps(names, ensure_ascii=False)};
 const cv=document.getElementById('c');
 function draw(){{const ctx=cv.getContext('2d');cv.width=cv.clientWidth*2;cv.height=400;ctx.scale(2,2);
