@@ -273,8 +273,8 @@ canvas{{width:100%;margin-top:8px}}
 </div>
 
 <div class="chart">
-  <div class="hd"><div class="pl">출발 시각 → 집 도착 시각</div><div class="ref">{now:%H:%M}<small>기준 · {src}</small></div></div>
-  <div class="ax">가로: 남동공단 출발 시각 · 세로: 집 도착 시각 · <span style="color:#d9403e">●</span> 지금 출발 · <span style="color:#d9a400">●</span> 가장 위험</div>
+  <div class="hd"><div class="pl">출발 시각별 걸리는 시간</div><div class="ref">{now:%H:%M}<small>기준 · {src}</small></div></div>
+  <div class="ax">가로: 남동공단 출발 시각 · 세로: 집까지 걸리는 시간(분) · <span style="color:#d9403e">●</span> 지금 출발 · <span style="color:#d9a400">●</span> 가장 위험</div>
   <canvas id="tc" height="240"></canvas>
 </div>
 
@@ -321,39 +321,42 @@ function showA(){{const t=arrs[as_.value];if(!t)return;try{{localStorage.setItem
     '<div class="alt">여유 있게는 '+(ok.length>2?ok[ok.length-3].d:ok[0].d)+' 출발</div>';}}
 as_.onchange=showA;document.getElementById('am').onclick=()=>{{if(as_.value>0){{as_.value--;showA();}}}};
 document.getElementById('ap').onclick=()=>{{if(as_.value<arrs.length-1){{as_.value++;showA();}}}};showA();
-// 출발 시각(x) → 도착 시각(y) 그래프
-const NOW='{now:%H:%M}',NOWA='{arrive:%H:%M}',WORST='{worst['depart']:%H:%M}';
+// 출발 시각(x) → 걸리는 시간(y, 분) 그래프
+const NOW='{now:%H:%M}',NOWT={total_now:.0f},NOWA='{arrive:%H:%M}',WORST='{worst['depart']:%H:%M}';
 const tc=document.getElementById('tc');
 function drawT(){{if(!P.length)return;const dpr=2,W=tc.clientWidth,H=240;tc.width=W*dpr;tc.height=H*dpr;
-const ctx=tc.getContext('2d');ctx.scale(dpr,dpr);const L=42,R=14,T=22,B=26;
-const nm=toM(NOW),na=toM(NOWA),xs=P.map(r=>toM(r.d)),ys=P.map(r=>toM(r.a));
+const ctx=tc.getContext('2d');ctx.scale(dpr,dpr);const L=36,R=14,T=22,B=26;
+const nm=toM(NOW),xs=P.map(r=>toM(r.d)),ys=P.map(r=>r.t);
 const showNow=nm>=Math.min(...xs)-15&&nm<=Math.max(...xs)+15;
-if(showNow){{xs.push(nm);ys.push(na);}}
-const x0=Math.floor(Math.min(...xs)/30)*30,x1=Math.ceil(Math.max(...xs)/30)*30,y0=Math.floor(Math.min(...ys)/30)*30,y1=Math.ceil(Math.max(...ys)/30)*30;
-const X=m=>L+(m-x0)/(x1-x0||1)*(W-L-R),Y=m=>T+(y1-m)/(y1-y0||1)*(H-T-B);
+if(showNow){{xs.push(nm);ys.push(NOWT);}}
+const x0=Math.floor(Math.min(...xs)/30)*30,x1=Math.ceil(Math.max(...xs)/30)*30;
+const ystep=(Math.max(...ys)-Math.min(...ys))>40?10:5;
+const y0=Math.max(0,Math.floor((Math.min(...ys)-ystep)/ystep)*ystep),y1=Math.ceil((Math.max(...ys)+ystep)/ystep)*ystep;
+const X=m=>L+(m-x0)/(x1-x0||1)*(W-L-R),Y=v=>T+(y1-v)/(y1-y0||1)*(H-T-B);
 const hm=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
 ctx.font='10px sans-serif';ctx.lineWidth=1;
-for(let m=y0;m<=y1;m+=30){{ctx.strokeStyle=m%60?'#eef0f3':'#dfe2e7';ctx.beginPath();ctx.moveTo(L,Y(m));ctx.lineTo(W-R,Y(m));ctx.stroke();ctx.fillStyle='#777';ctx.textAlign='right';ctx.fillText(hm(m),L-5,Y(m)+3);}}
+for(let v=y0;v<=y1;v+=ystep){{ctx.strokeStyle=v%(ystep*2)?'#eef0f3':'#dfe2e7';ctx.beginPath();ctx.moveTo(L,Y(v));ctx.lineTo(W-R,Y(v));ctx.stroke();ctx.fillStyle='#777';ctx.textAlign='right';ctx.fillText(v+'분',L-4,Y(v)+3);}}
 for(let m=x0;m<=x1;m+=30){{ctx.strokeStyle=m%60?'#eef0f3':'#dfe2e7';ctx.beginPath();ctx.moveTo(X(m),T);ctx.lineTo(X(m),H-B);ctx.stroke();ctx.fillStyle='#777';ctx.textAlign='center';ctx.fillText(hm(m),X(m),H-B+14);}}
-// 기준선: 가장 빠를 때 소요시간으로 갔을 경우
-const mt=Math.min(...P.map(r=>r.t));ctx.strokeStyle='#b9bec6';ctx.setLineDash([3,4]);ctx.lineWidth=1;ctx.beginPath();
-ctx.moveTo(X(x0),Y(x0+mt));ctx.lineTo(X(x1),Y(x1+mt));ctx.stroke();ctx.setLineDash([]);
-ctx.fillStyle='#999';ctx.textAlign='right';ctx.fillText('최단 '+mt+'분 기준선',W-R-2,T+10);
-// 예측선 (추천 길 기준 도착)
+// 예측선 아래 면 + 선 (추천 길 기준 소요시간)
+ctx.fillStyle='rgba(31,58,95,.08)';ctx.beginPath();ctx.moveTo(X(toM(P[0].d)),Y(y0));
+P.forEach(r=>ctx.lineTo(X(toM(r.d)),Y(r.t)));ctx.lineTo(X(toM(P[P.length-1].d)),Y(y0));ctx.closePath();ctx.fill();
 ctx.strokeStyle='#1f3a5f';ctx.lineWidth=2.5;ctx.lineJoin='round';ctx.beginPath();
-P.forEach((r,i)=>{{const x=X(toM(r.d)),y=Y(toM(r.a));i?ctx.lineTo(x,y):ctx.moveTo(x,y);}});ctx.stroke();
-ctx.fillStyle='#1f3a5f';P.forEach(r=>{{ctx.beginPath();ctx.arc(X(toM(r.d)),Y(toM(r.a)),2,0,7);ctx.fill();}});
+P.forEach((r,i)=>{{const x=X(toM(r.d)),y=Y(r.t);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}});ctx.stroke();
+ctx.fillStyle='#1f3a5f';P.forEach(r=>{{ctx.beginPath();ctx.arc(X(toM(r.d)),Y(r.t),2,0,7);ctx.fill();}});
 // 가장 위험한 출발
 const w=P.find(r=>r.d===WORST);
-if(w){{const wx=X(toM(w.d)),wy=Y(toM(w.a));ctx.fillStyle='#d9a400';ctx.beginPath();ctx.arc(wx,wy,5,0,7);ctx.fill();
-ctx.font='bold 11px sans-serif';ctx.textAlign=wx>W*.6?'right':'left';ctx.fillText(w.d+' 출발 → '+w.a,wx+(wx>W*.6?-8:8),wy-8);}}
+if(w){{const wx=X(toM(w.d)),wy=Y(w.t);ctx.fillStyle='#d9a400';ctx.beginPath();ctx.arc(wx,wy,5,0,7);ctx.fill();
+ctx.font='bold 11px sans-serif';ctx.textAlign=wx>W*.6?'right':'left';ctx.fillText(w.d+' 출발 '+w.t+'분',wx+(wx>W*.6?-8:8),wy-9);}}
 // 지금 출발 (기준시간)
-if(showNow){{const nx=X(nm),ny=Y(na);
+if(showNow){{const nx=X(nm),ny=Y(NOWT);
 ctx.strokeStyle='#d9403e';ctx.setLineDash([4,3]);ctx.lineWidth=1.5;
 ctx.beginPath();ctx.moveTo(nx,T);ctx.lineTo(nx,H-B);ctx.stroke();ctx.beginPath();ctx.moveTo(L,ny);ctx.lineTo(nx,ny);ctx.stroke();ctx.setLineDash([]);
 ctx.fillStyle='#d9403e';ctx.beginPath();ctx.arc(nx,ny,7,0,7);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
-ctx.font='bold 14px sans-serif';ctx.fillStyle='#d9403e';ctx.textAlign=nx>W*.55?'right':'left';
-ctx.fillText('지금 '+NOW+' → '+NOWA+' 도착',nx+(nx>W*.55?-12:12),ny+(w&&Math.abs(Y(toM(w.a))-ny)<22&&Math.abs(X(toM(w.d))-nx)<120?20:-12));}}}}
+ctx.font='bold 14px sans-serif';ctx.fillStyle='#d9403e';
+const txt='지금 출발 '+NOWT+'분 → '+NOWA+' 도착',tw=ctx.measureText(txt).width;ctx.textAlign='center';
+const clash=w&&Math.abs(Y(w.t)-ny)<26&&Math.abs(X(toM(w.d))-nx)<tw;
+const ty=(clash||ny<T+30)?ny+26:ny-14,tx=Math.min(Math.max(nx,L+tw/2+2),W-R-tw/2-2);
+ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=5;ctx.lineJoin='round';ctx.strokeText(txt,tx,ty);ctx.fillText(txt,tx,ty);}}}}
 drawT();addEventListener('resize',drawT);
 const data={json.dumps(by_seg, ensure_ascii=False)}, names={json.dumps(names, ensure_ascii=False)};
 const cv=document.getElementById('c');
