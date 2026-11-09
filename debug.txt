@@ -1,4 +1,4 @@
-== Mon Nov  9 16:27:33 KST 2026 ==
-topis http=200 time=0.372688s
+== Mon Nov  9 16:33:11 KST 2026 ==
+topis http=200 time=0.579928s
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?><TrafficInfo><list_total_count>1</list_total_count><RESULT><CODE>INFO-000</CODE><MESSAGE>정상 처리되었습니다</MESSAGE></RESULT><row><link_id>1220003800</link_id><prcs_spd>9</prcs_spd><prcs_trv_time>1200</prcs_trv_time></row></TrafficInf
 relay: not set
