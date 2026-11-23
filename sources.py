@@ -114,10 +114,29 @@ def _its_get(endpoint, params):
     r.raise_for_status()
     return r.json()
 
+def _its_feed():
+    """이 PC(국내, D:\\traffic_its\\its_feed.py)가 올린 data/its_live.json — 12분 안의 것이면 ITS 호출 대신 쓴다 (11-23).
+    ITS 는 해외 IP 를 막고, 카페24 중계도 해외 서버에는 보안 확인 페이지를 보내서."""
+    import json, os
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "its_live.json")
+    try:
+        d = json.load(open(p, encoding="utf-8"))
+        age = (dt.datetime.now() - dt.datetime.fromisoformat(d["ts"])).total_seconds()
+        if -120 <= age <= 720 and d.get("speeds"):
+            return [{"linkId": k, "speed": v} for k, v in d["speeds"].items()]
+    except Exception:
+        pass
+    return None
+
+
 def _its_items(key):
     import time
     if time.time() - _ITS_CACHE["t"] < 120:          # 2분 내 재호출은 캐시 (한도 절약)
         return _ITS_CACHE["items"]
+    fed = _its_feed()
+    if fed is not None:
+        _ITS_CACHE.update(t=time.time(), items=fed)
+        return fed
     params = dict(apiKey=key, type="all", getType="json", **ITS_BOX)
     j = _its_get("trafficInfo", params)
     body = j.get("body", j)
