@@ -94,7 +94,7 @@ def seoul_topis_find_links(road_name, xlsx_path=None):
 # ── ITS 국가교통정보센터 ──────────────────────────────
 ITS_BASE = "https://openapi.its.go.kr:9443"   # 포트 9443 필수
 # 사당역~선암IC 일대 바운딩 박스 (링크 속도 조회용 — 좁게)
-ITS_BOX = dict(minX=126.96, maxX=127.04, minY=37.44, maxY=37.49)
+ITS_BOX = dict(minX=126.70, maxX=127.03, minY=37.35, maxY=37.475)   # 11-23: 고잔·제3경인~과천까지 (링크 약 8,400개, 1.8MB)
 # 돌발 조회용 — 퇴근길 전체: 남동공단(인천) → 제3경인 → 외곽순환·과천봉담 / 수원광명·강남순환 → 사당·서초
 ITS_EVENT_BOX = dict(minX=126.70, maxX=127.06, minY=37.34, maxY=37.50)
 
