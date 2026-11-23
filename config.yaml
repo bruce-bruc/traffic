@@ -117,8 +117,22 @@ segments:
     free_flow_kmh: 40
 
   # ── M. 출근길 (방배동 → 사당역 → 사당IC → … → 고잔IC → 회사). 퇴근 계산에는 안 들어가고 표시·기록만 ──
+  - id: m_dongjak_north
+    name: "출근 · 방배우성 앞 → 이수 쪽 유턴 (동작대로 북행)"
+    route: M
+    source: seoul_topis
+    link_ids: [1210013300]        # 서울시 링크: 동작대로 사당역 → 이수 방향
+    length_km: 0.7
+    free_flow_kmh: 40
+  - id: m_dongjak_south
+    name: "출근 · 유턴 후 → 사당역 (동작대로 남행)"
+    route: M
+    source: seoul_topis
+    link_ids: [1210013200]        # 서울시 링크: 동작대로 이수 방향 → 사당역
+    length_km: 0.7
+    free_flow_kmh: 40
   - id: m_sadang_front
-    name: "출근 · 사당역 앞 → 사당IC (남태령 방향)"
+    name: "출근 · 사당역 → 사당IC (남태령 방향)"
     route: M
     source: seoul_topis
     link_ids: [1210008000]        # 서울시 링크: 사당역 → 남태령(서울측) 하행

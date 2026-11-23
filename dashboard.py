@@ -179,26 +179,37 @@ def build_dashboard():
     by_id = {seg: (spd, st, mn, mode) for seg, spd, st, mn, mode in latest}
     WORD = {"smooth": "원활", "slow": "서행", "jam": "정체", "unknown": "자료없음", "fixed": "추정"}
     CLR = {"smooth": "#2e9e5b", "slow": "#d9a400", "jam": "#d9403e", "unknown": "#888", "fixed": "#9aa3ad"}
-    QUADS = [("gojan_up", "퇴근 · 회사→고잔IC", "회사 앞에서 제3경인 고잔IC 올라타는 길"),
-             ("c_sadang_to_station", "퇴근 · 사당IC→사당역", "사당IC 합류해서 사당역 사거리까지"),
-             ("m_sadang_front", "출근 · 사당역 앞→사당IC", "사당역 앞에서 과천대로 타고 사당IC(남태령 방향)까지"),
-             ("m_gojan_down", "출근 · 고잔IC→회사", "제3경인 고잔IC 빠져나와 회사까지")]
+    QUADS = [(["gojan_up"], "퇴근 · 회사→고잔IC", "회사 앞에서 제3경인 고잔IC 올라타는 길"),
+             (["c_sadang_to_station"], "퇴근 · 사당IC→사당역", "사당IC 합류해서 사당역 사거리까지"),
+             (["m_dongjak_north", "m_dongjak_south", "m_sadang_front"], "출근 · 사당역 앞 대로", "방배우성 앞 동작대로 → 이수 쪽 유턴 → 사당역 → 사당IC"),
+             (["m_gojan_down"], "출근 · 고잔IC→회사", "제3경인 고잔IC 빠져나와 회사까지")]
+    RANK = {"jam": 3, "slow": 2, "unknown": 1, "smooth": 0, "fixed": -1}
+    SUBNAME = {sg["id"]: sg["name"].replace("출근 · ", "") for sg in cfg["segments"]}
     from monitor import weekday_pattern
     pattern = weekday_pattern()
     dow = now.strftime("%a")
     dow_ko = {"Mon": "월", "Tue": "화", "Wed": "수", "Thu": "목", "Fri": "금", "Sat": "토", "Sun": "일"}[dow]
     detail = {}
-    def quad(seg_id, title, desc):
-        spd, st, mn, mode = by_id.get(seg_id, (None, "fixed", None, "fixed"))
-        live = mode == "live"
-        val = f"{spd:.0f} km/h" if (live and spd) else ("추정" if not live else "자료없음")
-        sub = (f"약 {mn:.0f}분" if mn is not None else "") + (" · 실시간" if live else " · 중계 연결 후 실시간")
-        usual = [[slot, v] for (sg, d, slot), v in pattern.items() if sg == seg_id and d == dow]
-        hist = con_hist.execute("SELECT ts, speed, minutes FROM readings WHERE segment=? AND speed IS NOT NULL ORDER BY ts DESC LIMIT 12", (seg_id,)).fetchall()
-        detail[seg_id] = dict(title=title, desc=desc, word=WORD[st], color=CLR[st], spd=spd, mn=mn, live=live,
-                              today=by_seg_all.get(seg_id, []), usual=usual,
-                              hist=[[t[11:16], sp, m] for t, sp, m in hist])
-        return (f'<div class="q" onclick="openD(\'{seg_id}\')" style="border-top:6px solid {CLR[st]}"><div class="qt">{title}</div>'
+    def quad(seg_ids, title, desc):
+        parts = [(sid,) + by_id.get(sid, (None, "fixed", None, "fixed")) for sid in seg_ids]
+        live = all(p[4] == "live" for p in parts)
+        st = max((p[2] for p in parts), key=lambda x: RANK[x])          # 가장 나쁜 상태
+        spds = [p[1] for p in parts if p[4] == "live" and p[1]]
+        mn = sum(p[3] for p in parts if p[3] is not None) if any(p[3] is not None for p in parts) else None
+        if len(parts) > 1:
+            val = " · ".join(f"{p[1]:.0f}" for p in parts if p[1]) + " km/h" if spds else "자료없음"
+        else:
+            val = f"{spds[0]:.0f} km/h" if (live and spds) else ("추정" if not live else "자료없음")
+        sub = (f"합계 약 {mn:.0f}분" if (mn is not None and len(parts) > 1) else (f"약 {mn:.0f}분" if mn is not None else "")) + (" · 실시간" if live else " · 중계 연결 후 실시간")
+        key = seg_ids[0]
+        subs = []
+        for sid, spd_, st_, mn_, mode_ in parts:
+            hist = con_hist.execute("SELECT ts, speed, minutes FROM readings WHERE segment=? AND speed IS NOT NULL ORDER BY ts DESC LIMIT 12", (sid,)).fetchall()
+            subs.append(dict(id=sid, name=SUBNAME.get(sid, sid), word=WORD[st_], color=CLR[st_], spd=spd_, mn=mn_, live=mode_ == "live",
+                             today=by_seg_all.get(sid, []), usual=[[slot, v] for (sg, d, slot), v in pattern.items() if sg == sid and d == dow],
+                             hist=[[t[11:16], sp, m] for t, sp, m in hist]))
+        detail[key] = dict(title=title, desc=desc, word=WORD[st], color=CLR[st], mn=mn, live=live, subs=subs)
+        return (f'<div class="q" onclick="openD(\'{key}\')" style="border-top:6px solid {CLR[st]}"><div class="qt">{title}</div>'
                 f'<div class="qv" style="color:{CLR[st]}">{WORD[st]}</div><div class="qs">{val}<br>{sub}</div><div class="qgo">자세히 ›</div></div>')
     con_hist = sqlite3.connect(DB)
     by_seg_all = {}
@@ -207,7 +218,11 @@ def build_dashboard():
     quads = "".join(quad(*q) for q in QUADS)
     con_hist.close()
     morning = now.hour < 12
-    m_spd, m_st, m_mn, m_mode = by_id.get("m_sadang_front", (None, "unknown", None, "none"))
+    _mp = [by_id.get(x, (None, "unknown", None, "none")) for x in ("m_dongjak_north", "m_dongjak_south", "m_sadang_front")]
+    m_st = max((p[1] for p in _mp), key=lambda x: RANK.get(x, 1))
+    m_spd = min((p[0] for p in _mp if p[0]), default=None)
+    m_mn = sum(p[2] for p in _mp if p[2] is not None) if any(p[2] is not None for p in _mp) else None
+    m_mode = "live" if all(p[3] == "live" for p in _mp) else "none"
 
     # ── 출발 시각 선택용 데이터 ──
     SHORT = {rid: r["short"] for rid, r in cfg["routes"].items()}
@@ -284,7 +299,7 @@ canvas{{width:100%;margin-top:8px}}
 .qt{{font-size:12px;color:#666}} .qv{{font-size:26px;font-weight:800;margin:4px 0 2px}} .qs{{font-size:12px;color:#555;line-height:1.4}}
 .qh{{font-size:13px;color:#666;margin:0 0 6px 2px}}
 .q{{cursor:pointer;position:relative}} .q:active{{transform:scale(.98)}} .qgo{{position:absolute;right:12px;bottom:10px;font-size:12px;color:#1f3a5f;font-weight:600}}
-#dlg{{display:none;position:fixed;inset:0;background:#f5f6f8;z-index:50;overflow:auto;padding:16px}} #dlg.on{{display:block}}
+#dlg{{display:none}} body.dv>*:not(#dlg){{display:none}} body.dv>#dlg{{display:block}}
 .dhead{{display:flex;align-items:center;gap:10px;margin-bottom:12px}} .back{{width:44px;height:44px;border:0;border-radius:12px;background:#fff;font-size:22px;box-shadow:0 1px 2px rgba(0,0,0,.08)}}
 .dhead b{{font-size:18px}} .dbig{{border-radius:16px;padding:22px 20px;color:#fff;margin-bottom:12px}}
 .dbig .w{{font-size:40px;font-weight:800;line-height:1.1}} .dbig .v{{font-size:18px;margin-top:6px}} .dbig .s{{font-size:12px;opacity:.8;margin-top:8px}}
@@ -294,9 +309,9 @@ canvas{{width:100%;margin-top:8px}}
 </style></head><body>
 
 {f"""<div class="big" style="background:#3b5f3a">
-  <div class="l">출근길 · 사당역 앞 → 사당IC 지금</div>
+  <div class="l">출근길 · 집 앞 대로 → 유턴 → 사당역 → 사당IC 지금</div>
   <div class="n">{WORD[m_st]}</div>
-  <div class="a">{(f"{m_spd:.0f} km/h · 약 {m_mn:.0f}분" if m_spd else "자료 수집 전")}</div>
+  <div class="a">{(f"가장 느린 곳 {m_spd:.0f} km/h · 합계 약 {m_mn:.0f}분" if m_spd else "자료 수집 전")}</div>
   <div class="s">{now:%H:%M} 기준 · {"실시간" if m_mode == "live" else "—"}</div>
 </div>""" if morning else f"""<div class="big">
   <div class="l">지금 남동공단에서 출발하면</div>
@@ -416,15 +431,18 @@ ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=5;ctx.lineJoin='round';ctx.
 drawT();addEventListener('resize',drawT);
 const D={json.dumps(detail, ensure_ascii=False)};
 function openD(id){{const d=D[id];if(!d)return;document.getElementById('dt').textContent=d.title;
-  let h=`<div class="dbig" style="background:${{d.color}}"><div class="w">${{d.word}}</div><div class="v">${{d.live&&d.spd?Math.round(d.spd)+' km/h · 약 '+Math.round(d.mn)+'분':(d.mn!=null?'약 '+Math.round(d.mn)+'분 (추정)':'자료 없음')}}</div><div class="s">${{d.desc}}</div></div>`;
+  let h=`<div class="dbig" style="background:${{d.color}}"><div class="w">${{d.word}}</div><div class="v">${{d.mn!=null?(d.subs.length>1?'합계 ':'')+'약 '+Math.round(d.mn)+'분'+(d.live?'':' (추정)'):'자료 없음'}}</div><div class="s">${{d.desc}}</div></div>`;
   if(!d.live)h+=`<div class="note">이 구간은 인천·고속도로 구간이라 서울시 데이터에 없습니다. 지금은 평소 소요시간 × 시간대 가중치로 <b>추정</b>만 합니다.<br>카페24 서버에 중계 파일(its.php)을 올리면 국가 ITS 실시간으로 바뀝니다.</div>`;
-  if(d.today.length)h+=`<div class="dcard"><div class="pl">오늘 속도 흐름 (실선) · 평소 {dow_ko}요일 같은 시간대 평균 (점선)</div><canvas id="dc" height="200"></canvas></div>`;
-  if(d.hist.length)h+=`<div class="dcard"><div class="pl">최근 측정</div><table>${{d.hist.map(r=>`<tr><td>${{r[0]}}</td><td>${{Math.round(r[1])}} km/h</td><td>${{Math.round(r[2])}}분</td></tr>`).join('')}}</table></div>`;
-  document.getElementById('db').innerHTML=h;document.getElementById('dlg').classList.add('on');window.scrollTo(0,0);
-  if(d.today.length)setTimeout(()=>drawD(d),30);try{{history.pushState({{d:id}},'');}}catch(e){{}}}}
-function closeD(){{document.getElementById('dlg').classList.remove('on');}}
+  d.subs.forEach((u,i)=>{{
+    h+=`<div class="dcard"><div class="pl" style="display:flex;justify-content:space-between"><span>${{d.subs.length>1?(i+1)+'. ':''}}${{u.name}}</span><b style="color:${{u.color}}">${{u.word}}${{u.live&&u.spd?' · '+Math.round(u.spd)+' km/h':''}}${{u.mn!=null?' · '+Math.round(u.mn)+'분':''}}</b></div>`;
+    if(u.today.length)h+=`<div class="pl">오늘 흐름(실선) · 평소 {dow_ko}요일 평균(점선)</div><canvas id="dc${{i}}" height="160"></canvas>`;
+    if(u.hist.length)h+=`<details><summary style="font-size:13px">최근 측정</summary><table>${{u.hist.map(r=>`<tr><td>${{r[0]}}</td><td>${{Math.round(r[1])}} km/h</td><td>${{Math.round(r[2])}}분</td></tr>`).join('')}}</table></details>`;
+    h+=`</div>`;}});
+  document.getElementById('db').innerHTML=h;document.body.classList.add('dv');window.scrollTo(0,0);
+  setTimeout(()=>d.subs.forEach((u,i)=>{{if(u.today.length)drawD(u,'dc'+i);}}),30);try{{history.pushState({{d:id}},'');}}catch(e){{}}}}
+function closeD(){{document.body.classList.remove('dv');}}
 window.addEventListener('popstate',closeD);
-function drawD(d){{const c=document.getElementById('dc');if(!c)return;const W=c.width=c.clientWidth*2,H=c.height=400;const ctx=c.getContext('2d');ctx.font='22px sans-serif';
+function drawD(d,cid){{const c=document.getElementById(cid);if(!c)return;const W=c.width=c.clientWidth*2,H=c.height=320;const ctx=c.getContext('2d');ctx.font='22px sans-serif';
   const pts=d.today,us=d.usual;const all=pts.map(p=>p[1]).concat(us.map(p=>p[1]));const mx=Math.max(60,...all);const P=50;
   const tm=t=>{{const[a,b]=t.split(':').map(Number);return a*60+b;}};const xs=pts.map(p=>tm(p[0])).concat(us.map(p=>tm(p[0])));const x0=Math.min(...xs),x1=Math.max(...xs,x0+30);
   const X=t=>P+(tm(t)-x0)/(x1-x0)*(W-P-20),Y=v=>H-P-(v/mx)*(H-2*P);
