@@ -175,6 +175,22 @@ def build_dashboard():
     status_by_seg = {seg: st for seg, spd, st, mn, mode in latest}
     map_svg = route_map_svg(status_by_seg, best_route)
 
+    # ── 매일 쓰는 4구간 한눈에 (퇴근: 고잔IC·사당 / 출근: 사당역 앞·고잔IC) ──
+    by_id = {seg: (spd, st, mn, mode) for seg, spd, st, mn, mode in latest}
+    WORD = {"smooth": "원활", "slow": "서행", "jam": "정체", "unknown": "자료없음", "fixed": "추정"}
+    CLR = {"smooth": "#2e9e5b", "slow": "#d9a400", "jam": "#d9403e", "unknown": "#888", "fixed": "#9aa3ad"}
+    def quad(title, seg_id):
+        spd, st, mn, mode = by_id.get(seg_id, (None, "fixed", None, "fixed"))
+        live = mode == "live"
+        val = f"{spd:.0f} km/h" if (live and spd) else ("추정" if not live else "자료없음")
+        sub = (f"약 {mn:.0f}분" if mn is not None else "") + (" · 실시간" if live else " · 중계 연결 후 실시간")
+        return (f'<div class="q" style="border-top:6px solid {CLR[st]}"><div class="qt">{title}</div>'
+                f'<div class="qv" style="color:{CLR[st]}">{WORD[st]}</div><div class="qs">{val}<br>{sub}</div></div>')
+    quads = (quad("퇴근 · 회사→고잔IC", "gojan_up") + quad("퇴근 · 사당IC→사당역", "c_sadang_to_station")
+             + quad("출근 · 사당역 앞→사당IC", "m_sadang_front") + quad("출근 · 고잔IC→회사", "m_gojan_down"))
+    morning = now.hour < 12
+    m_spd, m_st, m_mn, m_mode = by_id.get("m_sadang_front", (None, "unknown", None, "none"))
+
     # ── 출발 시각 선택용 데이터 ──
     SHORT = {rid: r["short"] for rid, r in cfg["routes"].items()}
     picker = [dict(d=r["depart"].strftime("%H:%M"), b=r["best"],
@@ -245,14 +261,26 @@ canvas{{width:100%;margin-top:8px}}
 .chart .ax{{font-size:11px;color:#888;margin-top:2px}}
 #tc{{margin-top:6px}}
 .foot{{font-size:11px;color:#888;text-align:center;margin-top:10px}}
+.quads{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}}
+.q{{background:#fff;border-radius:14px;padding:12px 12px 10px;box-shadow:0 1px 2px rgba(0,0,0,.06)}}
+.qt{{font-size:12px;color:#666}} .qv{{font-size:26px;font-weight:800;margin:4px 0 2px}} .qs{{font-size:12px;color:#555;line-height:1.4}}
+.qh{{font-size:13px;color:#666;margin:0 0 6px 2px}}
 </style></head><body>
 
-<div class="big">
+{f"""<div class="big" style="background:#3b5f3a">
+  <div class="l">출근길 · 사당역 앞 → 사당IC 지금</div>
+  <div class="n">{WORD[m_st]}</div>
+  <div class="a">{(f"{m_spd:.0f} km/h · 약 {m_mn:.0f}분" if m_spd else "자료 수집 전")}</div>
+  <div class="s">{now:%H:%M} 기준 · {"실시간" if m_mode == "live" else "—"}</div>
+</div>""" if morning else f"""<div class="big">
   <div class="l">지금 남동공단에서 출발하면</div>
   <div class="n">{total_now:.0f}분</div>
   <div class="a">집 도착 {arrive:%H:%M}</div>
   <div class="s">{now:%H:%M} 기준 · {src}</div>
-</div>
+</div>"""}
+
+<div class="qh">매일 다니는 4구간</div>
+<div class="quads">{quads}</div>
 
 <div class="route"><div class="l">제3경인 끝 갈림길({split_at:%H:%M}쯤)에서</div><b>👉 {EASY[best_route].split(' (')[0]}</b>
   {EASY[best_route].split(' (')[1].rstrip(')')}</div>

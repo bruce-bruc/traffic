@@ -35,12 +35,18 @@ collect:
 # link_ids 가 있으면 ITS 실시간 속도, 없으면 fixed_min × 피크계수 로 추정 (링크 범위 밖 구간)
 # 노드 순서 = 주행 방향 (과천 22xx → 서울 12xx 이 상행)
 segments:
-  # ── 공통: 남동공단 → 제3경인 끝(갈림길) ──
+  # ── 공통: 회사 → 고잔IC → 제3경인 끝(갈림길) ──
+  - id: gojan_up
+    name: "회사 → 고잔IC (제3경인 올라타기)"
+    route: all
+    link_ids: []          # ITS 중계(its.php) 연결되면 국가 ITS 링크로 실시간 전환
+    fixed_min: 5
+    peak_extra_ratio: 0.6
   - id: leg_3rd_gyeongin
-    name: "남동공단 → 제3경인 끝 갈림길"
+    name: "고잔IC → 제3경인 끝 갈림길"
     route: all
     link_ids: []
-    fixed_min: 15
+    fixed_min: 10
     peak_extra_ratio: 0.3
 
   # ── A. 수원광명 → 강남순환로 ──
@@ -109,6 +115,21 @@ segments:
     link_ids: [1210008100]
     length_km: 0.8
     free_flow_kmh: 40
+
+  # ── M. 출근길 (방배동 → 사당역 → 사당IC → … → 고잔IC → 회사). 퇴근 계산에는 안 들어가고 표시·기록만 ──
+  - id: m_sadang_front
+    name: "출근 · 사당역 앞 → 사당IC (남태령 방향)"
+    route: M
+    source: seoul_topis
+    link_ids: [1210008000]        # 서울시 링크: 사당역 → 남태령(서울측) 하행
+    length_km: 2.0
+    free_flow_kmh: 50
+  - id: m_gojan_down
+    name: "출근 · 제3경인 고잔IC → 회사"
+    route: M
+    link_ids: []                  # ITS 중계 연결 후 실시간
+    fixed_min: 5
+    peak_extra_ratio: 0.3
 
 # 루트: 모니터 구간 합 + extra_min (집까지 마지막 구간)
 routes:

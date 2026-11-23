@@ -6,6 +6,10 @@ on:
     - cron: "30,45 5 * * 1-5"
     - cron: "0,15,30,45 6-8 * * 1-5"
     - cron: "0,15,30,45 9 * * 1-5"
+    # 출근길: 05:30~07:15 KST (= 전날 20:30~22:15 UTC, 일~목) 15분마다 시도
+    - cron: "30,45 20 * * 0-4"
+    - cron: "0,15,30,45 21 * * 0-4"
+    - cron: "0,15 22 * * 0-4"
   repository_dispatch:
     types: [kick]
   workflow_dispatch:
@@ -47,7 +51,9 @@ jobs:
             ./run.sh || echo "run failed"
             HM=$(date +%H%M); DOW=$(date +%u)
             NOW=$(date +%s)
-            if [ "$DOW" -ge 6 ] || [ "$HM" -lt 1430 ] || [ "$HM" -ge 1900 ] || [ $((NOW-START)) -gt 18000 ]; then
+            IN_EVE=$([ "$HM" -ge 1430 ] && [ "$HM" -lt 1900 ] && echo 1 || echo 0)
+            IN_MORN=$([ "$HM" -ge 0530 ] && [ "$HM" -lt 0730 ] && echo 1 || echo 0)
+            if [ "$DOW" -ge 6 ] || { [ "$IN_EVE" = 0 ] && [ "$IN_MORN" = 0 ]; } || [ $((NOW-START)) -gt 18000 ]; then
               echo "loop end"; break
             fi
             sleep 300
