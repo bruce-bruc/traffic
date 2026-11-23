@@ -51,8 +51,9 @@ def status_of(speed, th):
 
 
 def minutes_for(seg, speed, cfg=None, when=None):
-    """링크 구간: 길이/속도. 고정 구간: fixed_min × (1 + ratio × peak)."""
-    if not seg.get("link_ids"):
+    """링크 구간: 길이/속도. 고정 구간: fixed_min × (1 + ratio × peak).
+    링크가 있어도 속도가 없고 fixed_min 이 있으면 고정 추정 (11-23: ITS 중계 실패 때 과대 추정 방지)."""
+    if not seg.get("link_ids") or (not speed and seg.get("fixed_min")):
         when = when or dt.datetime.now()
         pf = peak_factor(cfg, when) if cfg else 0
         m = seg["fixed_min"] * (1 + seg.get("peak_extra_ratio", 0) * pf)
@@ -71,6 +72,8 @@ def collect_once(cfg, now=None):
         if seg.get("link_ids"):
             spd, mode = fetch_segment(seg, cfg["api_keys"], now)
             st = status_of(spd, th)
+            if mode != "live" and seg.get("fixed_min"):      # 11-23: ITS 못 받으면 예전처럼 추정
+                spd, mode, st = None, "fixed", "fixed"
         else:
             spd, mode, st = None, "fixed", "fixed"
         rows.append(dict(ts=now.isoformat(timespec="minutes"), segment=seg["id"],

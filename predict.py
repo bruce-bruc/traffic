@@ -39,6 +39,8 @@ def seg_minutes(cfg, seg, when, pattern, weather):
     if not seg.get("link_ids"):
         return minutes_for(seg, None, cfg, when) * wf, False
     spd, src = predicted_speed(seg, when, pattern, cfg)
+    if src != "data" and seg.get("fixed_min"):           # 11-23: 실측이 쌓이기 전엔 예전 추정 그대로
+        return minutes_for(seg, None, cfg, when) * wf, False
     return minutes_for(seg, spd / wf), src == "data"
 
 
