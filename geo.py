@@ -36,7 +36,7 @@ P = {
     "서초":      ("name", "예술의전당 서울 서초구",  (37.4803, 127.0132)),
     "남태령":    ("name", "남태령역 과천",          (37.4656, 126.9881)),
     "이수역":    ("name", "이수역 서울",           (37.4866, 126.9820)),
-    "방배집":    ("fixed", 37.4800, 126.9826),     # 동작대로 동쪽(방배동), 사당역~이수역 사이
+    "방배집":    ("fixed", 37.4810, 126.9822),     # 동작대로 위(방배동 쪽), 사당역~이수역 사이
 }
 
 # 구간 → 경유지 순서 (주행 방향). 경로가 엉뚱한 길로 가면 중간 경유지를 더 넣는다.
@@ -64,11 +64,25 @@ def _get(url):
         return json.loads(r.read().decode("utf-8"))
 
 
+OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter",
+            "https://lz4.overpass-api.de/api/interpreter", "https://z.overpass-api.de/api/interpreter"]
+
+
 def _overpass(q):
+    """서버가 바쁘면(502/429/504) 다른 미러로, 그래도 안 되면 잠시 쉬고 다시."""
     data = urllib.parse.urlencode({"data": q}).encode()
-    req = urllib.request.Request("https://overpass-api.de/api/interpreter", data=data, headers=UA)
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return json.loads(r.read().decode("utf-8")).get("elements", [])
+    last = None
+    for attempt in range(3):
+        for url in OVERPASS:
+            try:
+                req = urllib.request.Request(url, data=data, headers=UA)
+                with urllib.request.urlopen(req, timeout=60) as r:
+                    return json.loads(r.read().decode("utf-8")).get("elements", [])
+            except Exception as e:
+                last = e
+                time.sleep(1)
+        time.sleep(8 * (attempt + 1))
+    raise last
 
 
 def _bbox(c, d=0.045):
