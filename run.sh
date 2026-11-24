@@ -17,7 +17,7 @@ sync_main() {
 }
 sync_main
 
-python geo.py || echo "geo 실패"          # 지도 선 (경유지 정의가 바뀐 경우에만 다시 만듦)
+timeout 240 python geo.py || echo "geo 실패/시간초과"          # 지도 선 (경유지 정의가 바뀐 경우에만 다시 만듦)
 python main.py now | head -3
 
 # ── 페이지 배포 (gh-pages 브랜치) ──

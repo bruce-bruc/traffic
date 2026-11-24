@@ -72,16 +72,16 @@ def _overpass(q):
     """서버가 바쁘면(502/429/504) 다른 미러로, 그래도 안 되면 잠시 쉬고 다시."""
     data = urllib.parse.urlencode({"data": q}).encode()
     last = None
-    for attempt in range(3):
+    for attempt in range(2):
         for url in OVERPASS:
             try:
                 req = urllib.request.Request(url, data=data, headers=UA)
-                with urllib.request.urlopen(req, timeout=60) as r:
+                with urllib.request.urlopen(req, timeout=20) as r:
                     return json.loads(r.read().decode("utf-8")).get("elements", [])
             except Exception as e:
                 last = e
                 time.sleep(1)
-        time.sleep(8 * (attempt + 1))
+        time.sleep(5)
     raise last
 
 
