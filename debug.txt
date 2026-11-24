@@ -1,5 +1,5 @@
-== Wed Nov 25 00:59:22 KST 2026 ==
-topis http=200 time=0.302653s
+== Wed Nov 25 01:03:58 KST 2026 ==
+topis http=200 time=1.033482s
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?><TrafficInfo><RESULT><CODE>INFO-200</CODE><MESSAGE>해당하는 데이터가 없습니다.</MESSAGE></RESULT></TrafficInfo>
-relay http=200 time=0.642867s
+relay http=200 time=1.214042s
 <html><body><script type="text/javascript" src="/cupid.js" ></script><script>function toNumbers(d){var e=[];d.replace(/(..)/g,function(d){e.push(parseInt(d,16))});return e}function toHex(){for(var d=[],d=1==arguments.length&&arguments[0].constructor==Array?arguments[0]:arguments,e="",f=0;f<d.length;
