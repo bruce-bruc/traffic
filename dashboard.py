@@ -179,10 +179,10 @@ def build_dashboard():
     by_id = {seg: (spd, st, mn, mode) for seg, spd, st, mn, mode in latest}
     WORD = {"smooth": "원활", "slow": "서행", "jam": "정체", "unknown": "자료없음", "fixed": "추정"}
     CLR = {"smooth": "#2e9e5b", "slow": "#d9a400", "jam": "#d9403e", "unknown": "#888", "fixed": "#9aa3ad"}
-    QUADS = [(["gojan_up"], "퇴근 · 회사→고잔IC", "회사 앞에서 제3경인 고잔IC 올라타는 길"),
+    QUADS = [(["gojan_up"], "퇴근 · 회사→고잔IC", "호구포로 → 아암대로 → 제3경인 고잔IC 올라타기"),
              (["c_sadang_to_station"], "퇴근 · 사당IC→사당역", "사당IC 합류해서 사당역 사거리까지"),
              (["m_dongjak_north", "m_dongjak_south", "m_sadang_front"], "출근 · 사당역 앞 대로", "방배우성 앞 동작대로 → 이수 쪽 유턴 → 사당역 → 사당IC"),
-             (["m_gojan_down"], "출근 · 고잔IC→회사", "제3경인 고잔IC 빠져나와 회사까지")]
+             (["m_gojan_down"], "출근 · 제3경인→고잔IC", "영동JC 전부터 시흥아울렛 지나 고잔IC 빠져나오기까지")]
     RANK = {"jam": 3, "slow": 2, "unknown": 1, "smooth": 0, "fixed": -1}
     SUBNAME = {sg["id"]: sg["name"].replace("출근 · ", "") for sg in cfg["segments"]}
     from monitor import weekday_pattern

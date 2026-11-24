@@ -37,9 +37,11 @@ collect:
 segments:
   # ── 공통: 회사 → 고잔IC → 제3경인 끝(갈림길) ──
   - id: gojan_up
-    name: "회사 → 고잔IC (제3경인 올라타기)"
+    name: "회사 → 고잔IC (호구포로 → 아암대로)"
     route: all
-    link_ids: []          # ITS 중계(its.php) 연결되면 국가 ITS 링크로 실시간 전환
+    link_ids: [1650024400, 1650023600, 1650014800, 1650000103, 1650094500]   # ITS: 호구포로44번길 부근(앵고개로 지나) → 능허대로 → 인천신항대로 → 아암대로 → 고잔IC 진입 (11-25, links.json 에서)
+    length_km: 2.4
+    free_flow_kmh: 50
     fixed_min: 5
     peak_extra_ratio: 0.6
   - id: leg_3rd_gyeongin
@@ -147,10 +149,12 @@ segments:
     length_km: 2.0
     free_flow_kmh: 50
   - id: m_gojan_down
-    name: "출근 · 제3경인 고잔IC → 회사"
+    name: "출근 · 제3경인 하행 영동(월곶)JC 전 → 시흥아울렛 → 고잔IC 출구"
     route: M
-    link_ids: []                  # ITS 중계 연결 후 실시간
-    fixed_min: 5
+    link_ids: [2240145000, 2240149000, 2240149100, 2240149200, 1650094700, 1650094800]   # ITS: 제3경인 하행 시흥대로 앞 → 영동JC → 고잔IC → 아암대로 내려서기 (11-25, 상행 링크의 역방향 짝)
+    length_km: 8.3
+    free_flow_kmh: 90
+    fixed_min: 8
     peak_extra_ratio: 0.3
 
 # 루트: 모니터 구간 합 + extra_min (집까지 마지막 구간)
