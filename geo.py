@@ -147,7 +147,7 @@ def split_by(steps, key):
 
 
 def main(force=False):
-    sig = hashlib.md5(json.dumps([P, ROUTES, 7], ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+    sig = hashlib.md5(json.dumps([P, ROUTES, 8], ensure_ascii=False, sort_keys=True).encode()).hexdigest()
     old = {}
     if os.path.exists(OUT):
         try:
@@ -219,8 +219,10 @@ def main(force=False):
     # M: 집 → 이수역(북행) → 사당역(남행) → 사당IC 방향 (남태령 쪽으로 가는 길의 앞 1.2km)
     try:
         m = get("M")
-        put("m_dongjak_north", m[0])
-        put("m_dongjak_south", m[1])
+        south = [st for st in m[1] if "동작대로" in st["name"]] or m[1]      # 유턴 후 사당역까지 동작대로 남행
+        put("m_dongjak_south", south)
+        north = [dict(name=st["name"], dist=st["dist"], line=list(reversed(st["line"]))) for st in reversed(south)]
+        put("m_dongjak_north", north)                                       # 북행은 같은 길 반대 방향 (옆길로 새는 것 방지)
         put("m_sadang_front", head_m(m[2], 1200))
     except Exception as e:
         print("  M 실패:", type(e).__name__, e)
