@@ -174,6 +174,14 @@ def build_dashboard():
 
     status_by_seg = {seg: st for seg, spd, st, mn, mode in latest}
     map_svg = route_map_svg(status_by_seg, best_route)
+    # 실제 지도 (data/geo.json — geo.py 가 만든 구간별 도로 선). 없으면 지도 칸은 안 그림
+    geo = {}
+    try:
+        geo = json.load(open(os.path.join(os.path.dirname(DB), "geo.json"), encoding="utf-8")).get("segments", {})
+    except Exception:
+        geo = {}
+    route_segs = {rid: [sg["id"] for sg in cfg["segments"] if sg["route"] in set(r["includes"])] for rid, r in cfg["routes"].items()}
+    seg_route = {sg["id"]: sg["route"] for sg in cfg["segments"]}
 
     # ── 매일 쓰는 4구간 한눈에 (퇴근: 고잔IC·사당 / 출근: 사당역 앞·고잔IC) ──
     by_id = {seg: (spd, st, mn, mode) for seg, spd, st, mn, mode in latest}
@@ -257,6 +265,8 @@ def build_dashboard():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="refresh" content="300">
 <title>퇴근길</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 body{{font-family:-apple-system,"Noto Sans KR",sans-serif;margin:0;padding:16px;background:#f5f6f8;color:#222}}
 .big{{background:#1f3a5f;color:#fff;border-radius:16px;padding:22px 20px;margin-bottom:12px}}
@@ -265,6 +275,10 @@ body{{font-family:-apple-system,"Noto Sans KR",sans-serif;margin:0;padding:16px;
 .route{{background:#fff;border-radius:14px;padding:16px;margin-bottom:12px;font-size:17px;box-shadow:0 1px 2px rgba(0,0,0,.06)}}
 .route b{{display:block;font-size:20px;margin-bottom:4px}} .route .l{{font-size:13px;color:#666;margin-bottom:4px}}
 .mapbox{{background:#fff;border-radius:14px;padding:8px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.06)}}
+.lmap{{height:280px;border-radius:10px;background:#e9ecef}} .lmap.big{{height:72vh}}
+.mhd{{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#666;padding:2px 6px 6px}}
+.mhd button{{border:0;background:#eef1f5;border-radius:8px;padding:6px 10px;font-size:13px;color:#1f3a5f;font-weight:600}}
+.lg{{font-size:11px;color:#666;padding:6px 6px 0;display:flex;gap:10px;flex-wrap:wrap}} .lg i{{display:inline-block;width:18px;height:4px;vertical-align:middle;margin-right:4px;border-radius:2px}}
 .pick{{background:#fff;border-radius:14px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.06)}}
 .pick .pl{{font-size:13px;color:#666;margin-bottom:8px}} .pick .row{{display:flex;gap:8px;align-items:center}}
 .pick select{{flex:1;font-size:22px;font-weight:700;padding:8px;border:1px solid #ddd;border-radius:10px;background:#fff;color:#222}}
@@ -330,6 +344,8 @@ canvas{{width:100%;margin-top:8px}}
 
 {issues_box}
 
+{f"""<div class="mapbox"><div class="mhd"><span>지도 · 색 = 지금 상태, 굵은 선 = 추천 길</span><button onclick="bigMap()">크게</button></div><div id="map" class="lmap"></div>
+<div class="lg"><span><i style="background:#2e9e5b"></i>원활</span><span><i style="background:#d9a400"></i>서행</span><span><i style="background:#d9403e"></i>정체</span><span><i style="background:#9aa3ad"></i>추정</span></div></div>""" if geo else ""}
 <div class="mapbox">{map_svg}</div>
 
 <div class="pick">
@@ -429,17 +445,29 @@ const clash=w&&Math.abs(Y(w.t)-ny)<26&&Math.abs(X(toM(w.d))-nx)<tw;
 const ty=(clash||ny<T+30)?ny+26:ny-14,tx=Math.min(Math.max(nx,L+tw/2+2),W-R-tw/2-2);
 ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=5;ctx.lineJoin='round';ctx.strokeText(txt,tx,ty);ctx.fillText(txt,tx,ty);}}}}
 drawT();addEventListener('resize',drawT);
+const GEO={json.dumps(geo, ensure_ascii=False)}, SEGST={json.dumps(status_by_seg, ensure_ascii=False)}, BEST={json.dumps(route_segs.get(best_route, []))}, SEGNM={json.dumps({sg["id"]: sg["name"] for sg in cfg["segments"]}, ensure_ascii=False)};
+const SC={{smooth:'#2e9e5b',slow:'#d9a400',jam:'#d9403e',unknown:'#888',fixed:'#9aa3ad'}};
+function mkMap(el,focus){{if(!window.L||!document.getElementById(el))return null;const m=L.map(el,{{zoomControl:false,attributionControl:false}});
+  L.tileLayer('https://tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png',{{maxZoom:18}}).addTo(m);
+  const fb=[];Object.entries(GEO).forEach(([id,g])=>{{if(!g.line||g.line.length<2)return;const st=SEGST[id]||'fixed',hi=focus?focus.includes(id):BEST.includes(id);
+    const ln=L.polyline(g.line,{{color:SC[st]||'#888',weight:hi?8:4,opacity:focus&&!hi?.35:.95,lineCap:'round'}}).addTo(m);
+    ln.bindTooltip((SEGNM[id]||id)+' · '+({{smooth:'원활',slow:'서행',jam:'정체',fixed:'추정',unknown:'자료없음'}})[st],{{sticky:true}});
+    if(hi||!focus)fb.push(...g.line);}});
+  if(fb.length)m.fitBounds(L.latLngBounds(fb),{{padding:[18,18]}});return m;}}
+let MM=null;function bigMap(){{const e=document.getElementById('map');e.classList.toggle('big');setTimeout(()=>{{if(MM){{MM.invalidateSize();const fb=[];Object.entries(GEO).forEach(([id,g])=>{{if(g.line)fb.push(...g.line);}});if(fb.length)MM.fitBounds(L.latLngBounds(fb),{{padding:[18,18]}});}}}},60);}}
+setTimeout(()=>{{MM=mkMap('map');}},50);
 const D={json.dumps(detail, ensure_ascii=False)};
 function openD(id){{const d=D[id];if(!d)return;document.getElementById('dt').textContent=d.title;
   let h=`<div class="dbig" style="background:${{d.color}}"><div class="w">${{d.word}}</div><div class="v">${{d.mn!=null?(d.subs.length>1?'합계 ':'')+'약 '+Math.round(d.mn)+'분'+(d.live?'':' (추정)'):'자료 없음'}}</div><div class="s">${{d.desc}}</div></div>`;
-  if(!d.live)h+=`<div class="note">이 구간은 인천·고속도로 구간이라 서울시 데이터에 없습니다. 지금은 평소 소요시간 × 시간대 가중치로 <b>추정</b>만 합니다.<br>카페24 서버에 중계 파일(its.php)을 올리면 국가 ITS 실시간으로 바뀝니다.</div>`;
+  if(Object.keys(GEO).length)h+=`<div class="mapbox"><div class="mhd"><span>이 구간 위치 · 색 = 지금 상태</span></div><div id="dmap" class="lmap"></div></div>`;
+  if(!d.live)h+=`<div class="note">지금은 실시간 속도를 못 받아 평소 소요시간 × 시간대 가중치로 <b>추정</b>만 합니다. (PC 피드가 멈췄거나 링크가 없는 구간)</div>`;
   d.subs.forEach((u,i)=>{{
     h+=`<div class="dcard"><div class="pl" style="display:flex;justify-content:space-between"><span>${{d.subs.length>1?(i+1)+'. ':''}}${{u.name}}</span><b style="color:${{u.color}}">${{u.word}}${{u.live&&u.spd?' · '+Math.round(u.spd)+' km/h':''}}${{u.mn!=null?' · '+Math.round(u.mn)+'분':''}}</b></div>`;
     if(u.today.length)h+=`<div class="pl">오늘 흐름(실선) · 평소 {dow_ko}요일 평균(점선)</div><canvas id="dc${{i}}" height="160"></canvas>`;
     if(u.hist.length)h+=`<details><summary style="font-size:13px">최근 측정</summary><table>${{u.hist.map(r=>`<tr><td>${{r[0]}}</td><td>${{Math.round(r[1])}} km/h</td><td>${{Math.round(r[2])}}분</td></tr>`).join('')}}</table></details>`;
     h+=`</div>`;}});
   document.getElementById('db').innerHTML=h;document.body.classList.add('dv');window.scrollTo(0,0);
-  setTimeout(()=>d.subs.forEach((u,i)=>{{if(u.today.length)drawD(u,'dc'+i);}}),30);try{{history.pushState({{d:id}},'');}}catch(e){{}}}}
+  setTimeout(()=>{{mkMap('dmap',d.subs.map(u=>u.id));d.subs.forEach((u,i)=>{{if(u.today.length)drawD(u,'dc'+i);}});}},30);try{{history.pushState({{d:id}},'');}}catch(e){{}}}}
 function closeD(){{document.body.classList.remove('dv');}}
 window.addEventListener('popstate',closeD);
 function drawD(d,cid){{const c=document.getElementById(cid);if(!c)return;const W=c.width=c.clientWidth*2,H=c.height=320;const ctx=c.getContext('2d');ctx.font='22px sans-serif';

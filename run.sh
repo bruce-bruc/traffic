@@ -17,6 +17,7 @@ sync_main() {
 }
 sync_main
 
+python geo.py || echo "geo 실패"          # 지도 선 (경유지 정의가 바뀐 경우에만 다시 만듦)
 python main.py now | head -3
 
 # ── 페이지 배포 (gh-pages 브랜치) ──
@@ -47,7 +48,7 @@ touch gh-pages/.nojekyll
    commit -qm "site $(date '+%m-%d %H:%M')" 2>/dev/null && git push -qf origin HEAD:gh-pages) || echo "site unchanged"
 
 # ── 기록 저장 (main) ──
-git add data/traffic.db
+git add data/traffic.db data/geo.json 2>/dev/null || git add data/traffic.db
 git commit -qm "data $(date '+%m-%d %H:%M')" 2>/dev/null || true
 sync_main
 git push -q origin HEAD:main || echo "push failed"
