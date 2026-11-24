@@ -26,6 +26,8 @@ def key_candidates():
             txt = open(os.path.join(here, fn), encoding="utf-8", errors="ignore").read()
         except OSError:
             continue
+        if "key" in fn.lower() and 16 <= len(txt.strip()) <= 120 and "\n" not in txt.strip():
+            out.append((fn, txt.strip()))                       # its_key.txt 처럼 키만 들어있는 파일
         for m in re.finditer(r"[Kk][Ee][Yy][^\n]{0,80}?([A-Za-z0-9+/_\-][A-Za-z0-9+/=_\-]{23,79})", txt):
             tok = m.group(1)
             if tok not in (c[1] for c in out):
@@ -71,6 +73,9 @@ def main():
         print("  (없음 — 도로명 표기가 다를 수 있음. 비슷한 이름:)",
               sorted({rn(i) for i in items if ROAD[:2] in rn(i)})[:30])
         return
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "links.json"), "w", encoding="utf-8") as f:
+        json.dump(items, f, ensure_ascii=False)
+    print("  (영역 전체 링크를 links.json 에 저장 — 이 파일을 Claude 채팅창에 끌어다 놓으면 나머지는 Claude 가 합니다)")
     by_end, by_start = {}, {}
     for i in items:
         by_end.setdefault(str(i.get("endNodeId")), []).append(i)
@@ -82,18 +87,24 @@ def main():
 
     # ① 고잔IC 진입 링크의 시작 노드에서 거꾸로(상류로) 따라가며 호구포로 본선(번길 제외)을 모은다 = 회사 → 고잔IC 방향
     chain, seen, node, hops_off = [], set(), str(anchor.get("startNodeId")), 0
-    visited_nodes, prev_end = {node}, str(anchor.get("endNodeId"))
+    visited_nodes, prev_end, cur_road, on_main = {node}, str(anchor.get("endNodeId")), rn(anchor), False
     while len(chain) < 60:
         preds = [i for i in by_end.get(node, []) if lid(i) not in seen and lid(i) != ANCHOR
                  and str(i.get("startNodeId")) != prev_end                 # 방금 온 링크의 반대편(유턴) 제외
                  and str(i.get("startNodeId")) not in visited_nodes]       # 고리 방지
         main = [i for i in preds if rn(i) == ROAD]
+        same = [i for i in preds if rn(i) == cur_road]
         if main:
-            cur, hops_off = main[0], 0
-        elif preds and hops_off < 3 and not chain:        # IC 램프 등 호구포로 아닌 링크 몇 개는 건너뛴다
-            cur, hops_off = preds[0], hops_off + 1
-        else:
+            cur, on_main = main[0], True
+        elif on_main:
+            print(f"  (호구포로 끝: 노드 {node} 앞 링크 = {[(lid(i), rn(i)) for i in preds]})")
             break
+        elif preds and hops_off < 10:                     # 호구포로 만나기 전: 아암대로·램프 등은 같은 도로명 우선으로 따라간다
+            cur, hops_off = (same or sorted(preds, key=lambda i: -float(i.get("speed") or 0)))[0], hops_off + 1
+        else:
+            print(f"  (더 못 감: 노드 {node} 앞 링크 = {[(lid(i), rn(i)) for i in preds]})")
+            break
+        cur_road = rn(cur)
         seen.add(lid(cur)); chain.insert(0, cur)
         prev_end, node = str(cur.get("endNodeId")), str(cur.get("startNodeId")); visited_nodes.add(node)
     print("■ 회사 → 고잔IC 방향 (주행 순서, 누적 km 는 ITS 속도×시간으로 추정)")
@@ -113,7 +124,7 @@ def main():
     for n, j in enumerate(rev, 1):
         print(f"  {n:2d}. " + (f"{lid(j)} | {rn(j)} | {j.get('speed')}km/h | {j.get('startNodeId')}→{j.get('endNodeId')}" if j else "(반대 링크 없음 — 일방통행?)"))
     print("  m_gojan_down link_ids: [" + ", ".join(lid(j) for j in rev if j) + "]")
-    print("\n→ 이 출력 전체를 복사해서 Claude 에 붙여넣어 주세요. (같은 폴더의 result.txt 에도 저장됨)")
+    print("\n→ 이 출력 전체를 복사해서 Claude 에 붙여넣어 주세요. (같은 폴더의 result.txt 와 links.json 을 채팅창에 끌어다 놓아도 됩니다)")
 
 
 class Tee:
