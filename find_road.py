@@ -3,7 +3,7 @@
 
     python find_road.py 호구포로
 
-ITS 인증키는 (1) 환경변수 ITS_KEY, (2) 같은 폴더의 its_feed.py 안에 적힌 키, (3) 실행 시 물어봄 — 순서로 찾습니다.
+ITS 인증키는 (1) 명령줄 두 번째 인자, (2) 환경변수 ITS_KEY, (3) 같은 폴더 파일들 안의 키 후보를 차례로 시도, (4) 실행 시 물어봄.\n    python find_road.py 호구포로 여기에키   ← 키를 직접 줄 때
 """
 import json, os, re, sys, urllib.request, urllib.parse
 
@@ -12,20 +12,25 @@ ANCHOR = "1650094600"            # 고잔IC 에서 제3경인 올라타는 첫 �
 BOX = dict(minX=126.70, maxX=127.03, minY=37.35, maxY=37.475)
 
 
-def get_key():
+def key_candidates():
+    """환경변수 → 같은 폴더의 모든 설정/스크립트 파일에서 'key' 근처의 긴 영숫자 토큰을 모두 모은다."""
+    out = []
     k = os.environ.get("ITS_KEY", "").strip()
     if k:
-        return k
+        out.append(("환경변수 ITS_KEY", k))
     here = os.path.dirname(os.path.abspath(__file__))
-    for fn in ("its_feed.py", "config.yaml", "key.txt"):
-        p = os.path.join(here, fn)
-        if os.path.exists(p):
-            txt = open(p, encoding="utf-8", errors="ignore").read()
-            m = re.search(r"""(?:apiKey|ITS_KEY|its_national|KEY)\s*[=:]\s*['"]([A-Za-z0-9+/=_\-]{16,})['"]""", txt)
-            if m:
-                print(f"(키: {fn} 에서 읽음)")
-                return m.group(1)
-    return input("ITS 인증키를 붙여넣고 엔터: ").strip()
+    for fn in sorted(os.listdir(here)):
+        if fn == os.path.basename(__file__) or not fn.lower().endswith((".py", ".txt", ".yaml", ".yml", ".json", ".ini", ".env", ".cfg", ".bat", ".cmd", ".ps1")):
+            continue
+        try:
+            txt = open(os.path.join(here, fn), encoding="utf-8", errors="ignore").read()
+        except OSError:
+            continue
+        for m in re.finditer(r"[Kk][Ee][Yy][^\n]{0,80}?([A-Za-z0-9+/_\-][A-Za-z0-9+/=_\-]{23,79})", txt):
+            tok = m.group(1)
+            if tok not in (c[1] for c in out):
+                out.append((fn, tok))
+    return out
 
 
 def fetch(key):
@@ -41,7 +46,20 @@ def fetch(key):
 
 
 def main():
-    items = fetch(get_key())
+    items = None
+    cands = key_candidates()
+    if len(sys.argv) > 2:
+        cands.insert(0, ("명령줄", sys.argv[2]))
+    for src, k in cands:
+        try:
+            items = fetch(k)
+            print(f"(키: {src} 의 것으로 연결됨)")
+            break
+        except Exception as e:
+            print(f"  {src} 의 키 실패: {type(e).__name__} {e}")
+    if items is None:
+        k = input("키를 못 찾았습니다. ITS 인증키를 붙여넣고 엔터: ").strip()
+        items = fetch(k)
     hits = [i for i in items if ROAD in str(i.get("roadName", "") or "")]
     print(f"[ITS] '{ROAD}' 링크 {len(hits)}개 (영역 전체 {len(items)}개)")
     if not hits:
