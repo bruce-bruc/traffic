@@ -60,41 +60,78 @@ def main():
     if items is None:
         k = input("키를 못 찾았습니다. ITS 인증키를 붙여넣고 엔터: ").strip()
         items = fetch(k)
-    hits = [i for i in items if ROAD in str(i.get("roadName", "") or "")]
+    def rn(i): return str(i.get("roadName", "") or "")
+    def lid(i): return str(i.get("linkId"))
+    def km(i):
+        try: return float(i.get("speed") or 0) * float(i.get("travelTime") or 0) / 3600
+        except (TypeError, ValueError): return 0.0
+    hits = [i for i in items if ROAD in rn(i)]
     print(f"[ITS] '{ROAD}' 링크 {len(hits)}개 (영역 전체 {len(items)}개)")
     if not hits:
         print("  (없음 — 도로명 표기가 다를 수 있음. 비슷한 이름:)",
-              sorted({str(i.get("roadName")) for i in items if ROAD[:2] in str(i.get("roadName", ""))})[:30])
+              sorted({rn(i) for i in items if ROAD[:2] in rn(i)})[:30])
         return
-    by_start = {str(i.get("startNodeId")): i for i in hits}
-    ends = {str(i.get("endNodeId")) for i in hits}
-    anchor_start = next((str(i.get("startNodeId")) for i in items if str(i.get("linkId")) == ANCHOR), None)
-    heads = [i for i in hits if str(i.get("startNodeId")) not in ends or str(i.get("startNodeId")) == anchor_start] or hits[:1]
-    used, chains = set(), []
-    for h in heads:
-        chain, cur = [], h
-        while cur and str(cur.get("linkId")) not in used:
-            used.add(str(cur.get("linkId"))); chain.append(cur)
-            if str(cur.get("endNodeId")) == anchor_start:
-                break
-            cur = by_start.get(str(cur.get("endNodeId")))
-        chains.append(chain)
-    rest = [i for i in hits if str(i.get("linkId")) not in used]
-    if rest:
-        chains.append(rest)
-    for n, ch in enumerate(chains, 1):
-        last_end = str(ch[-1].get("endNodeId"))
-        tag = f"  ← 끝이 고잔IC 링크({ANCHOR})로 이어짐 = 회사 → 고잔IC (gojan_up)" if anchor_start and last_end == anchor_start else ""
-        print(f"\n사슬 {n} ({len(ch)}개){tag}")
-        for i in ch:
-            print(f"   {i.get('linkId')} | {i.get('roadName')} | {i.get('speed')}km/h | {i.get('startNodeId')}→{i.get('endNodeId')}")
-        print("   link_ids: [" + ", ".join(str(i.get("linkId")) for i in ch) + "]")
-    print("\n→ 이 출력 전체를 복사해서 Claude 에 붙여넣어 주세요.")
+    by_end, by_start = {}, {}
+    for i in items:
+        by_end.setdefault(str(i.get("endNodeId")), []).append(i)
+        by_start.setdefault(str(i.get("startNodeId")), []).append(i)
+    anchor = next((i for i in items if lid(i) == ANCHOR), None)
+    if not anchor:
+        print(f"고잔IC 기준 링크 {ANCHOR} 가 응답에 없습니다 — 영역을 확인하세요."); return
+    print(f"기준 링크 {ANCHOR} ({rn(anchor)}) 시작노드 {anchor.get('startNodeId')} 에서 거꾸로 따라갑니다.\n")
+
+    # ① 고잔IC 진입 링크의 시작 노드에서 거꾸로(상류로) 따라가며 호구포로 본선(번길 제외)을 모은다 = 회사 → 고잔IC 방향
+    chain, seen, node, hops_off = [], set(), str(anchor.get("startNodeId")), 0
+    visited_nodes, prev_end = {node}, str(anchor.get("endNodeId"))
+    while len(chain) < 60:
+        preds = [i for i in by_end.get(node, []) if lid(i) not in seen and lid(i) != ANCHOR
+                 and str(i.get("startNodeId")) != prev_end                 # 방금 온 링크의 반대편(유턴) 제외
+                 and str(i.get("startNodeId")) not in visited_nodes]       # 고리 방지
+        main = [i for i in preds if rn(i) == ROAD]
+        if main:
+            cur, hops_off = main[0], 0
+        elif preds and hops_off < 3 and not chain:        # IC 램프 등 호구포로 아닌 링크 몇 개는 건너뛴다
+            cur, hops_off = preds[0], hops_off + 1
+        else:
+            break
+        seen.add(lid(cur)); chain.insert(0, cur)
+        prev_end, node = str(cur.get("endNodeId")), str(cur.get("startNodeId")); visited_nodes.add(node)
+    print("■ 회사 → 고잔IC 방향 (주행 순서, 누적 km 는 ITS 속도×시간으로 추정)")
+    acc = 0.0
+    for n, i in enumerate(chain, 1):
+        acc += km(i)
+        print(f"  {n:2d}. {lid(i)} | {rn(i)} | {i.get('speed')}km/h | {i.get('startNodeId')}→{i.get('endNodeId')} | 누적 {acc:.1f}km")
+    print("  gojan_up link_ids: [" + ", ".join(lid(i) for i in chain) + "]")
+
+    # ② 반대 방향 = 같은 노드쌍을 거꾸로 잇는 링크 (출근: 고잔IC → 회사)
+    rev = []
+    for i in reversed(chain):
+        s_, e_ = str(i.get("startNodeId")), str(i.get("endNodeId"))
+        pair = [j for j in by_start.get(e_, []) if str(j.get("endNodeId")) == s_]
+        rev.append(pair[0] if pair else None)
+    print("\n■ 고잔IC → 회사 방향 (출근)")
+    for n, j in enumerate(rev, 1):
+        print(f"  {n:2d}. " + (f"{lid(j)} | {rn(j)} | {j.get('speed')}km/h | {j.get('startNodeId')}→{j.get('endNodeId')}" if j else "(반대 링크 없음 — 일방통행?)"))
+    print("  m_gojan_down link_ids: [" + ", ".join(lid(j) for j in rev if j) + "]")
+    print("\n→ 이 출력 전체를 복사해서 Claude 에 붙여넣어 주세요. (같은 폴더의 result.txt 에도 저장됨)")
+
+
+class Tee:
+    def __init__(self, *fs): self.fs = fs
+    def write(self, s):
+        for f in self.fs: f.write(s)
+    def flush(self):
+        for f in self.fs: f.flush()
 
 
 if __name__ == "__main__":
+    out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "result.txt")
     try:
-        main()
+        with open(out_path, "w", encoding="utf-8") as fo:
+            sys.stdout = Tee(sys.__stdout__, fo)
+            main()
+            sys.stdout = sys.__stdout__
     except Exception as e:
+        sys.stdout = sys.__stdout__
         print("오류:", type(e).__name__, e)
     input("\n(엔터를 누르면 닫힙니다)")
