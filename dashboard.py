@@ -189,7 +189,7 @@ def build_dashboard():
     CLR = {"smooth": "#2e9e5b", "slow": "#d9a400", "jam": "#d9403e", "unknown": "#888", "fixed": "#9aa3ad"}
     QUADS = [(["gojan_up"], "퇴근 · 회사→고잔IC", "호구포로 → 아암대로 → 제3경인 고잔IC 올라타기"),
              (["c_sadang_to_station"], "퇴근 · 사당IC→사당역", "사당IC 합류해서 사당역 사거리까지"),
-             (["m_dongjak_north", "m_dongjak_south", "m_sadang_front"], "출근 · 사당역 앞 대로", "방배우성 앞 동작대로 → 이수 쪽 유턴 → 사당역 → 사당IC"),
+             (["m_dongjak_north", "m_sadang_front"], "출근 · 사당역 앞 대로", "방배우성 앞 → 사당역 앞 유턴 → 사당IC"),
              (["m_gojan_down"], "출근 · 제3경인→고잔IC", "영동JC 전부터 시흥아울렛 지나 고잔IC 빠져나오기까지")]
     RANK = {"jam": 3, "slow": 2, "unknown": 1, "smooth": 0, "fixed": -1}
     SUBNAME = {sg["id"]: sg["name"].replace("출근 · ", "") for sg in cfg["segments"]}
@@ -226,7 +226,7 @@ def build_dashboard():
     quads = "".join(quad(*q) for q in QUADS)
     con_hist.close()
     morning = now.hour < 12
-    _mp = [by_id.get(x, (None, "unknown", None, "none")) for x in ("m_dongjak_north", "m_dongjak_south", "m_sadang_front")]
+    _mp = [by_id.get(x, (None, "unknown", None, "none")) for x in ("m_dongjak_north", "m_sadang_front")]
     m_st = max((p[1] for p in _mp), key=lambda x: RANK.get(x, 1))
     m_spd = min((p[0] for p in _mp if p[0]), default=None)
     m_mn = sum(p[2] for p in _mp if p[2] is not None) if any(p[2] is not None for p in _mp) else None
@@ -323,7 +323,7 @@ canvas{{width:100%;margin-top:8px}}
 </style></head><body>
 
 {f"""<div class="big" style="background:#3b5f3a">
-  <div class="l">출근길 · 집 앞 대로 → 유턴 → 사당역 → 사당IC 지금</div>
+  <div class="l">출근길 · 집 앞 → 사당역 앞 유턴 → 사당IC 지금</div>
   <div class="n">{WORD[m_st]}</div>
   <div class="a">{(f"가장 느린 곳 {m_spd:.0f} km/h · 합계 약 {m_mn:.0f}분" if m_spd else "자료 수집 전")}</div>
   <div class="s">{now:%H:%M} 기준 · {"실시간" if m_mode == "live" else "—"}</div>

@@ -22,8 +22,7 @@ P = {
     "과천청사": (["정부과천청사역", "정부과천청사"], (37.4265, 126.9895)),
     "서초":     (["예술의전당 서울 서초구"], (37.4803, 127.0132)),
     "남태령":   (["남태령역 과천"], (37.4656, 126.9881)),
-    "이수역":   ([], (37.4860, 126.9820)),          # 동작대로 위 (검색 결과가 옆길로 붙어서 좌표 고정)
-    "방배집":   ([], (37.4805, 126.9821)),          # 동작대로 위(방배동 쪽), 사당역~이수역 사이
+    "방배집":   (["방배우성아파트 서울 서초구 방배동"], (37.4742, 126.9830)),   # 사당역 남쪽, 과천대로 동쪽
 }
 
 # 길 묻기: 이름 → (경유 기준점들, 꼭 지나야 하는 도로명 — 대안 경로 중 이걸 포함한 것을 고른다)
@@ -31,7 +30,7 @@ ROUTES = {
     "A": (["회사", "사당역"], ["제3경인", "강남순환로"]),          # 수원광명 → 강남순환로 → 사당IC → 사당역
     "B": (["회사", "학의JC", "서초"], ["제3경인", "우면산"]),      # 외곽순환 → 학의JC → 봉담과천로 → 과천대로 → 우면산터널
     "C": (["과천청사", "남태령", "사당역"], ["과천대로"]),         # 과천대로 → 남태령 → 사당IC → 사당역
-    "M": (["방배집", "이수역", "사당역", "남태령"], ["동작대로"]), # 출근: 집 앞 북행 → 유턴 → 사당역 → 사당IC
+    "M": (["방배집", "사당역", "남태령"], []),                   # 출근: 집 앞 북행 → 사당역 앞 유턴 → 남행 사당IC
     "R": (["서초", "학의JC", "회사"], ["제3경인"]),            # 출근 역방향: 제3경인 하행 → 고잔IC
 }
 
@@ -147,7 +146,7 @@ def split_by(steps, key):
 
 
 def main(force=False):
-    sig = hashlib.md5(json.dumps([P, ROUTES, 8], ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+    sig = hashlib.md5(json.dumps([P, ROUTES, 9], ensure_ascii=False, sort_keys=True).encode()).hexdigest()
     old = {}
     if os.path.exists(OUT):
         try:
@@ -219,11 +218,8 @@ def main(force=False):
     # M: 집 → 이수역(북행) → 사당역(남행) → 사당IC 방향 (남태령 쪽으로 가는 길의 앞 1.2km)
     try:
         m = get("M")
-        south = [st for st in m[1] if "동작대로" in st["name"]] or m[1]      # 유턴 후 사당역까지 동작대로 남행
-        put("m_dongjak_south", south)
-        north = [dict(name=st["name"], dist=st["dist"], line=list(reversed(st["line"]))) for st in reversed(south)]
-        put("m_dongjak_north", north)                                       # 북행은 같은 길 반대 방향 (옆길로 새는 것 방지)
-        put("m_sadang_front", head_m(m[2], 1200))
+        put("m_dongjak_north", m[0])                 # 집 앞 → 사당역 (북행)
+        put("m_sadang_front", head_m(m[1], 1200))    # 유턴 후 사당역 → 사당IC (남행 앞 1.2km)
     except Exception as e:
         print("  M 실패:", type(e).__name__, e)
 
