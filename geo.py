@@ -29,8 +29,8 @@ P = {
 # 길 묻기: 이름 → (경유 기준점들, 꼭 지나야 하는 도로명 — 대안 경로 중 이걸 포함한 것을 고른다)
 ROUTES = {
     "A": (["회사", "사당역"], ["제3경인", "강남순환로"]),          # 수원광명 → 강남순환로 → 사당IC → 사당역
-    "B": (["회사", "과천IC", "서초"], ["제3경인", "우면산"]),      # 외곽순환 → 봉담과천로 → 과천대로 → 우면산터널
-    "C": (["과천IC", "남태령", "사당역"], ["과천대로"]),           # 과천대로 → 남태령 → 사당IC → 사당역
+    "B": (["회사", "서초"], ["제3경인", "우면산"]),               # 외곽순환 → 봉담과천로 → 과천대로 → 우면산터널 (대안 경로 중 고름)
+    "C": (["과천청사", "남태령", "사당역"], ["과천대로"]),         # 과천대로 → 남태령 → 사당IC → 사당역
     "M": (["방배집", "이수역", "사당역", "남태령"], ["동작대로"]), # 출근: 집 앞 북행 → 유턴 → 사당역 → 사당IC
     "R": (["서초", "과천청사", "회사"], ["제3경인"]),            # 출근 역방향: 제3경인 하행 → 고잔IC
 }
@@ -82,6 +82,9 @@ def osrm(pts):
 
 def pick(routes, must):
     """꼭 지나야 하는 도로명을 모두 포함한 대안 경로. 없으면 첫 번째."""
+    for k, legs in enumerate(routes):
+        big = [s["name"] for leg in legs for s in leg if s["dist"] > 1500 and s["name"]]
+        print(f"   대안 {k + 1}: " + " → ".join(dict.fromkeys(big)))
     for legs in routes:
         names = " ".join(s["name"] for leg in legs for s in leg)
         if all(m in names for m in must):
@@ -144,7 +147,7 @@ def split_by(steps, key):
 
 
 def main(force=False):
-    sig = hashlib.md5(json.dumps([P, ROUTES, 4], ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+    sig = hashlib.md5(json.dumps([P, ROUTES, 5], ensure_ascii=False, sort_keys=True).encode()).hexdigest()
     old = {}
     if os.path.exists(OUT):
         try:
@@ -192,14 +195,13 @@ def main(force=False):
 
     # B: 회사 → 제3경인 → 외곽순환 → 봉담과천로 → [과천대로 시내] → 우면산터널 → 서초
     try:
-        b = get("B")
-        l1, l2 = b[0], b[1]
-        _, rest = split_by(l1, lambda n: "제3경인" in n)
+        b = get("B")[0]
+        _, rest = split_by(b, lambda n: "제3경인" in n)
         rest = rest[len([s for s in rest if "제3경인" in s["name"]]):]
         ring, gc = split_by(rest, lambda n: "과천대로" in n)
         put("bc_outer_ring", ring)
-        gc2, um = split_by(l2, lambda n: "우면산" in n)
-        put("bc_gwacheon", gc + gc2)
+        gc, um = split_by(gc, lambda n: "우면산" in n)
+        put("bc_gwacheon", gc)
         put("b_umyeonsan", um)
     except Exception as e:
         print("  B 실패:", type(e).__name__, e)
@@ -208,6 +210,7 @@ def main(force=False):
     try:
         c = get("C")
         allc = c[0] + c[1]
+        _, allc = split_by(allc, lambda n: "과천대로" in n)        # 과천 시내 골목은 빼고 과천대로부터
         put("c_namtaeryeong", head_m(allc, total_m(allc) - 1000))
         put("c_sadang_to_station", tail_m(allc, 1000))
     except Exception as e:
