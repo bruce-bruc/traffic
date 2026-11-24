@@ -2,6 +2,21 @@
 # 한 번 수집 → 화면 생성 → gh-pages 로 배포 → data/traffic.db 를 main 에 저장
 set -e
 export TZ=Asia/Seoul
+
+# ── git 준비 (11-24) ──
+# 이 PC 가 5분마다 data/its_live.json 을 main 에 올리므로, 수집 전에 최신 것을 받아온다.
+# 예전엔 커미터 이름/메일이 없어 `pull --rebase` 가 "Committer identity unknown" 으로 멈추고
+# 그 뒤로 rebase 상태에 갇혀 2회차부터 피드가 안 갱신돼 ITS 구간이 전부 '추정'으로 나왔다.
+git config user.name traffic-bot
+git config user.email bot@users.noreply.github.com
+sync_main() {
+  git rebase --abort 2>/dev/null || true          # 이전에 갇힌 rebase 가 있으면 풀기
+  if ! git pull -q --rebase origin main; then
+    echo "pull failed — rebase abort"; git rebase --abort 2>/dev/null || true
+  fi
+}
+sync_main
+
 python main.py now | head -3
 
 # ── 페이지 배포 (gh-pages 브랜치) ──
@@ -33,6 +48,6 @@ touch gh-pages/.nojekyll
 
 # ── 기록 저장 (main) ──
 git add data/traffic.db
-git -c user.name=traffic-bot -c user.email=bot@users.noreply.github.com commit -qm "data $(date '+%m-%d %H:%M')" 2>/dev/null || true
-git pull -q --rebase origin main || true
-git push -q origin HEAD:main || true
+git commit -qm "data $(date '+%m-%d %H:%M')" 2>/dev/null || true
+sync_main
+git push -q origin HEAD:main || echo "push failed"
