@@ -6,6 +6,7 @@
   python main.py stats          쌓인 데이터로 요일·시간대별 평균 속도 표
   python main.py dashboard      data/dashboard.html 생성
   python main.py find-links     인증키로 링크 ID 후보 찾기 (config 에 채워넣기용)
+  python main.py find-road 호구포로   (PC 에서) 도로명으로 ITS 링크를 방향별로 찾아 gojan_up / m_gojan_down 에 넣을 ID 출력
   python main.py plan           오늘 출발 시각별 예상 도착 + 가장 덜 밀리는 출발 시각
   python main.py eta 17:10      17:10 에 남동공단 출발하면 몇 시 도착?
   python main.py plan push      예측표를 텔레그램으로
@@ -124,6 +125,46 @@ def find_links(cfg):
             print("  ", e)
 
 
+def find_road(cfg, road, anchor="1650094600"):
+    """ITS 영역 안에서 도로명(예: 호구포로)이 들어간 링크를 찾아 방향별 사슬로 정렬해 보여준다 (11-24).
+    anchor = 고잔IC 에서 제3경인 올라타는 첫 링크(leg_3rd_gyeongin). 그 링크의 시작 노드로 이어지는 사슬이 '회사 → 고잔IC' 방향.
+    PC 에서 실행 (ITS 는 해외 IP 차단):  python main.py find-road 호구포로"""
+    key = cfg["api_keys"].get("its_national")
+    if not key:
+        print("ITS 인증키가 없습니다 (config.yaml api_keys.its_national 또는 환경변수 ITS_KEY)"); return
+    items = its_find_links(key)
+    hits = [i for i in items if road in str(i.get("roadName", "") or "")]
+    print(f"[ITS] '{road}' 링크 {len(hits)}개 (영역 전체 {len(items)}개)")
+    if not hits:
+        print("  (없음 — 도로명 표기가 다를 수 있음. 비슷한 이름:)",
+              sorted({str(i.get("roadName")) for i in items if road[:2] in str(i.get("roadName", ""))})[:30]); return
+    by_start = {str(i.get("startNodeId")): i for i in hits}
+    ends = {str(i.get("endNodeId")) for i in hits}
+    anchor_start = next((str(i.get("startNodeId")) for i in items if str(i.get("linkId")) == anchor), None)
+    # 사슬 머리: 아무 링크의 끝도 아닌 시작 노드, 또는 고잔IC 노드에서 출발하는 링크 (양방향이 IC 노드를 공유하므로 거기서 끊는다)
+    heads = [i for i in hits if str(i.get("startNodeId")) not in ends or str(i.get("startNodeId")) == anchor_start] or hits[:1]
+    used, chains = set(), []
+    for h in heads:
+        chain, cur = [], h
+        while cur and str(cur.get("linkId")) not in used:
+            used.add(str(cur.get("linkId"))); chain.append(cur)
+            if str(cur.get("endNodeId")) == anchor_start:
+                break
+            cur = by_start.get(str(cur.get("endNodeId")))
+        chains.append(chain)
+    rest = [i for i in hits if str(i.get("linkId")) not in used]
+    if rest:
+        chains.append(rest)
+    for n, ch in enumerate(chains, 1):
+        last_end = str(ch[-1].get("endNodeId"))
+        tag = "  ← 끝이 고잔IC 링크(%s)로 이어짐 = 회사 → 고잔IC (gojan_up)" % anchor if anchor_start and last_end == anchor_start else ""
+        print(f"\n사슬 {n} ({len(ch)}개){tag}")
+        for i in ch:
+            print(f"   {i.get('linkId')} | {i.get('roadName')} | {i.get('speed')}km/h | {i.get('startNodeId')}→{i.get('endNodeId')}")
+        print("   link_ids: [" + ", ".join(str(i.get("linkId")) for i in ch) + "]")
+    print("\n→ 회사 → 고잔IC 방향 사슬은 gojan_up 에, 반대 방향은 m_gojan_down 에 넣으세요. (사슬이 안 이어지면 지도에서 노드 순서 확인)")
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "now"
     cfg = load_config()
@@ -148,6 +189,8 @@ if __name__ == "__main__":
         print("생성:", build_dashboard())
     elif cmd == "find-links":
         find_links(cfg)
+    elif cmd == "find-road":
+        find_road(cfg, sys.argv[2] if len(sys.argv) > 2 else "호구포로")
     elif cmd == "plan":
         text, _ = run_plan(cfg, push=(len(sys.argv) > 2 and sys.argv[2] == "push"))
         print(text)

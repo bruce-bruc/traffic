@@ -200,7 +200,7 @@ def build_dashboard():
             val = " · ".join(f"{p[1]:.0f}" for p in parts if p[1]) + " km/h" if spds else "자료없음"
         else:
             val = f"{spds[0]:.0f} km/h" if (live and spds) else ("추정" if not live else "자료없음")
-        sub = (f"합계 약 {mn:.0f}분" if (mn is not None and len(parts) > 1) else (f"약 {mn:.0f}분" if mn is not None else "")) + (" · 실시간" if live else " · 중계 연결 후 실시간")
+        sub = (f"합계 약 {mn:.0f}분" if (mn is not None and len(parts) > 1) else (f"약 {mn:.0f}분" if mn is not None else "")) + (" · 실시간" if live else " · 추정(링크 미설정)")
         key = seg_ids[0]
         subs = []
         for sid, spd_, st_, mn_, mode_ in parts:
@@ -296,7 +296,7 @@ canvas{{width:100%;margin-top:8px}}
 .foot{{font-size:11px;color:#888;text-align:center;margin-top:10px}}
 .quads{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}}
 .q{{background:#fff;border-radius:14px;padding:12px 12px 10px;box-shadow:0 1px 2px rgba(0,0,0,.06)}}
-.qt{{font-size:12px;color:#666}} .qv{{font-size:26px;font-weight:800;margin:4px 0 2px}} .qs{{font-size:12px;color:#555;line-height:1.4}}
+.qt{{font-size:12px;color:#666}} .qv{{font-size:26px;font-weight:800;margin:4px 0 2px}} .qs{{font-size:12px;color:#555;line-height:1.4;padding-right:56px}}
 .qh{{font-size:13px;color:#666;margin:0 0 6px 2px}}
 .q{{cursor:pointer;position:relative}} .q:active{{transform:scale(.98)}} .qgo{{position:absolute;right:12px;bottom:10px;font-size:12px;color:#1f3a5f;font-weight:600}}
 #dlg{{display:none}} body.dv>*:not(#dlg){{display:none}} body.dv>#dlg{{display:block}}
