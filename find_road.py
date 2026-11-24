@@ -9,7 +9,7 @@ import json, os, re, sys, urllib.request, urllib.parse
 
 ROAD = sys.argv[1] if len(sys.argv) > 1 else "호구포로"
 ANCHOR = "1650094600"            # 고잔IC 에서 제3경인 올라타는 첫 링크 — 이 링크로 이어지는 사슬이 '회사 → 고잔IC'
-BOX = dict(minX=126.70, maxX=127.03, minY=37.35, maxY=37.475)
+BOX = dict(minX=126.60, maxX=127.03, minY=37.33, maxY=37.475)   # 11-25: 아암대로·남동공단 서쪽까지 넓힘
 
 
 def key_candidates():
