@@ -13,32 +13,37 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "data", "geo.json")
 UA = {"User-Agent": "traffic-commute-monitor/1.0 (github.com/bruce-bruc/traffic)"}
 
-# 경유지: ("찾을 이름", (대략 위도, 경도)) — 이름을 못 찾으면 괄호 좌표 사용. 좌표만 줄 땐 (위도, 경도).
+# 경유지. 종류:
+#   ("jct", "이름 정규식", (위도, 경도))  → OSM 고속도로 나들목/분기점 노드(highway=motorway_junction)에서 찾음 (가장 정확)
+#   ("way", "도로명", (위도, 경도))       → OSM 에서 그 이름의 길을 찾아 가운데 좌표
+#   ("name", "검색어", (위도, 경도))      → Nominatim 주소 검색
+#   ("fixed", 위도, 경도)                → 좌표 그대로
+# 괄호 좌표는 못 찾았을 때 쓰는 대략값이자, 검색 범위(±5km)의 중심.
 P = {
-    "회사":      ("인천 남동구 호구포로 44번길",     (37.3950, 126.7000)),
-    "고잔IC":    ("고잔IC 인천 남동구",             (37.3900, 126.6950)),
-    "월곶JC":    ("월곶분기점 시흥",                 (37.3880, 126.7520)),
-    "도리JC":    ("도리분기점 시흥",                 (37.4085, 126.8380)),
-    "소하JC":    ("소하분기점 광명",                 (37.4480, 126.8850)),
-    "금천IC":    ("금천IC 서울 금천구",              (37.4565, 126.8990)),
-    "봉천터널":  ("봉천터널 서울 관악구",             (37.4745, 126.9650)),
-    "사당IC":    ("사당IC 서울 동작구",              (37.4700, 126.9760)),
-    "사당역":    ("사당역 서울",                     (37.4766, 126.9816)),
-    "학의JC":    ("학의분기점 의왕",                 (37.3985, 126.9680)),
-    "과천청사":  ("정부과천청사역",                   (37.4265, 126.9890)),
-    "선암IC":    ("선암IC 과천",                     (37.4480, 126.9980)),
-    "우면산터널_서초": ("우면산터널 서초 출구",        (37.4820, 127.0130)),
-    "서초":      ("예술의전당 서울 서초구",            (37.4790, 127.0120)),
-    "남태령":    ("남태령역 과천",                    (37.4645, 126.9868)),
-    "이수역":    ("이수역 서울",                     (37.4855, 126.9820)),
-    "방배집":    ("방배우성아파트 서울 서초구 방배동",  (37.4815, 126.9830)),
+    "회사":      ("way",  "호구포로44번길",        (37.3950, 126.7000)),
+    "고잔IC":    ("jct",  "고잔",                 (37.3900, 126.6950)),
+    "월곶JC":    ("jct",  "월곶",                 (37.3840, 126.7600)),
+    "도리JC":    ("jct",  "도리",                 (37.3944, 126.8503)),
+    "소하JC":    ("jct",  "소하",                 (37.4338, 126.8983)),
+    "금천IC":    ("jct",  "금천",                 (37.4500, 126.9000)),
+    "봉천터널":  ("name", "봉천터널 서울 관악구",   (37.4672, 126.9704)),
+    "사당IC":    ("jct",  "사당",                 (37.4710, 126.9770)),
+    "사당역":    ("name", "사당역 서울",           (37.4744, 126.9820)),
+    "학의JC":    ("jct",  "학의",                 (37.3950, 126.9800)),
+    "과천청사":  ("name", "정부과천청사역",         (37.4265, 126.9890)),
+    "선암IC":    ("jct",  "선암",                 (37.4480, 126.9980)),
+    "우면산터널_서초": ("name", "우면산터널 서초",  (37.4820, 127.0130)),
+    "서초":      ("name", "예술의전당 서울 서초구",  (37.4803, 127.0132)),
+    "남태령":    ("name", "남태령역 과천",          (37.4656, 126.9881)),
+    "이수역":    ("name", "이수역 서울",           (37.4866, 126.9820)),
+    "방배집":    ("fixed", 37.4800, 126.9826),     # 동작대로 동쪽(방배동), 사당역~이수역 사이
 }
 
 # 구간 → 경유지 순서 (주행 방향). 경로가 엉뚱한 길로 가면 중간 경유지를 더 넣는다.
 SEG = {
     "gojan_up":          ["회사", "고잔IC"],
     "leg_3rd_gyeongin":  ["고잔IC", "월곶JC", "도리JC"],
-    "a_suwon_gwangmyeong": ["도리JC", "소하JC", "금천IC", "봉천터널"],
+    "a_suwon_gwangmyeong": ["도리JC", "소하JC", "금천IC", "봉천터널"],   # 외곽순환 → 소하JC → 수원광명 끝 → 강남순환로
     "a_before_sadang":   ["봉천터널", "사당IC"],
     "a_sadang_ramp":     ["사당IC", "사당IC"],
     "a_sadang_to_station": ["사당IC", "사당역"],
@@ -59,23 +64,54 @@ def _get(url):
         return json.loads(r.read().decode("utf-8"))
 
 
-def geocode(name, fallback, cache):
-    if name in cache:
-        return cache[name]
-    q = urllib.parse.urlencode(dict(q=name, format="json", limit=1, countrycodes="kr"))
+def _overpass(q):
+    data = urllib.parse.urlencode({"data": q}).encode()
+    req = urllib.request.Request("https://overpass-api.de/api/interpreter", data=data, headers=UA)
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return json.loads(r.read().decode("utf-8")).get("elements", [])
+
+
+def _bbox(c, d=0.045):
+    return f"{c[0]-d},{c[1]-d},{c[0]+d},{c[1]+d}"
+
+
+def _near(c, lat, lon, d=0.07):
+    return abs(lat - c[0]) < d and abs(lon - c[1]) < d
+
+
+def geocode(spec, cache):
+    kind = spec[0]
+    key = json.dumps(spec, ensure_ascii=False)
+    if key in cache:
+        return cache[key]
+    if kind == "fixed":
+        cache[key] = [spec[1], spec[2], "fixed"]
+        return cache[key]
+    q, fb = spec[1], spec[2]
     try:
-        res = _get("https://nominatim.openstreetmap.org/search?" + q)
-        time.sleep(1.1)                                   # Nominatim 예절: 초당 1회
-        if res:
-            lat, lon = float(res[0]["lat"]), float(res[0]["lon"])
-            # 대략 좌표에서 8km 넘게 떨어진 결과는 엉뚱한 곳으로 보고 버림
-            if abs(lat - fallback[0]) < 0.07 and abs(lon - fallback[1]) < 0.09:
-                cache[name] = [lat, lon, "osm"]
-                return cache[name]
+        if kind == "jct":
+            els = _overpass(f'[out:json][timeout:25];node["highway"="motorway_junction"]["name"~"{q}"]({_bbox(fb)});out;')
+            if els:          # 여러 개(상·하행)면 대략값에 가장 가까운 것
+                e = min(els, key=lambda e: (e["lat"] - fb[0]) ** 2 + (e["lon"] - fb[1]) ** 2)
+                cache[key] = [e["lat"], e["lon"], "osm-jct:" + str(e.get("tags", {}).get("name"))]
+                return cache[key]
+        elif kind == "way":
+            els = _overpass(f'[out:json][timeout:25];way["name"="{q}"]({_bbox(fb)});out center;')
+            if els and "center" in els[0]:
+                cache[key] = [els[0]["center"]["lat"], els[0]["center"]["lon"], "osm-way"]
+                return cache[key]
+        elif kind == "name":
+            res = _get("https://nominatim.openstreetmap.org/search?" + urllib.parse.urlencode(dict(q=q, format="json", limit=3, countrycodes="kr")))
+            time.sleep(1.1)                           # Nominatim 예절: 초당 1회
+            for r in res:
+                lat, lon = float(r["lat"]), float(r["lon"])
+                if _near(fb, lat, lon):
+                    cache[key] = [lat, lon, "osm"]
+                    return cache[key]
     except Exception as e:
-        print("  geocode 실패:", name, e)
-    cache[name] = [fallback[0], fallback[1], "fallback"]
-    return cache[name]
+        print("  찾기 실패:", spec, type(e).__name__, e)
+    cache[key] = [fb[0], fb[1], "fallback"]
+    return cache[key]
 
 
 def route(pts):
@@ -107,7 +143,7 @@ def main(force=False):
         print("geo.json 최신 — 건너뜀")
         return
     cache = {}
-    pts = {k: geocode(n, fb, cache) for k, (n, fb) in P.items()}
+    pts = {k: geocode(spec, cache) for k, spec in P.items()}
     for k, v in pts.items():
         print(f"  {k}: {v[0]:.4f},{v[1]:.4f} ({v[2]})")
     segs = {}
