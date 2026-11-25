@@ -1,5 +1,5 @@
-== Wed Nov 25 16:24:04 KST 2026 ==
-topis http=200 time=0.312308s
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?><TrafficInfo><list_total_count>1</list_total_count><RESULT><CODE>INFO-000</CODE><MESSAGE>정상 처리되었습니다</MESSAGE></RESULT><row><link_id>1220003800</link_id><prcs_spd>17</prcs_spd><prcs_trv_time>635</prcs_trv_time></row></TrafficInf
-relay http=200 time=0.673039s
+== Wed Nov 25 16:29:21 KST 2026 ==
+topis http=200 time=0.303996s
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?><TrafficInfo><list_total_count>1</list_total_count><RESULT><CODE>INFO-000</CODE><MESSAGE>정상 처리되었습니다</MESSAGE></RESULT><row><link_id>1220003800</link_id><prcs_spd>13</prcs_spd><prcs_trv_time>830</prcs_trv_time></row></TrafficInf
+relay http=200 time=0.657452s
 <html><body><script type="text/javascript" src="/cupid.js" ></script><script>function toNumbers(d){var e=[];d.replace(/(..)/g,function(d){e.push(parseInt(d,16))});return e}function toHex(){for(var d=[],d=1==arguments.length&&arguments[0].constructor==Array?arguments[0]:arguments,e="",f=0;f<d.length;
